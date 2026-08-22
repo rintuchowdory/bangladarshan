@@ -1,6 +1,9 @@
 /* Design philosophy: River of Thought — contemporary editorial modernism with deep indigo, warm paper, river-mist neutrals, river-line wayfinding, and restrained vermilion action cues. This page keeps audio at the center and uses asymmetric editorial spacing rather than a generic centered dashboard. */
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useAuth } from "@/_core/hooks/useAuth";
+import { startLogin } from "@/const";
+import { trpc } from "@/lib/trpc";
 import {
   ArrowRight,
   BookOpen,
@@ -25,6 +28,7 @@ import {
   X,
 } from "lucide-react";
 import { toast } from "sonner";
+import { useLocation } from "wouter";
 
 const artwork = {
   hero: "/manus-storage/bangladarshan-hero_7eb066d8.png",
@@ -105,9 +109,9 @@ const chapters = [
 ];
 
 const books = [
-  { title: "Philosophy 101", subtitle: "A gentle beginning", author: "The listening edition", tag: "Featured", image: artwork.hero, progress: 0.18 },
-  { title: "Letters from a River", subtitle: "On memory & place", author: "Selected essays", tag: "New", image: artwork.library, progress: 0 },
-  { title: "The Art of Attention", subtitle: "Practices for presence", author: "Short reflections", tag: "12 min", image: artwork.hero, progress: 0 },
+  { title: "Philosophy 101", subtitle: "A gentle beginning", author: "The listening edition", tag: "Featured", image: artwork.hero, progress: 0.18, topic: "philosophy", durationMinutes: 81, language: "bn" },
+  { title: "Letters from a River", subtitle: "On memory & place", author: "Selected essays", tag: "New", image: artwork.library, progress: 0, topic: "memoir", durationMinutes: 42, language: "en" },
+  { title: "The Art of Attention", subtitle: "Practices for presence", author: "Short reflections", tag: "12 min", image: artwork.hero, progress: 0, topic: "practice", durationMinutes: 12, language: "de" },
 ];
 
 function formatTime(seconds: number) {
@@ -124,6 +128,7 @@ export default function Home() {
   const [currentTime, setCurrentTime] = useState(648);
   const [speed, setSpeed] = useState(1);
   const [activeChapter, setActiveChapter] = useState(1);
+  const [activeBookId, setActiveBookId] = useState("Philosophy 101");
   const [showMenu, setShowMenu] = useState(false);
   const [showSearch, setShowSearch] = useState(false);
   const [query, setQuery] = useState("");
@@ -134,13 +139,26 @@ export default function Home() {
     return saved.length ? saved : [{ title: "Philosophy 101", chapter: 1, progress: 0.18, updatedAt: Number(localStorage.getItem("bd-last-listened")) || Date.now() }];
   });
   const [showLanguages, setShowLanguages] = useState(false);
+  const [topicFilter, setTopicFilter] = useState("all");
+  const [durationFilter, setDurationFilter] = useState("all");
+  const [languageFilter, setLanguageFilter] = useState("all");
+  const [location, setLocation] = useLocation();
   const audioRef = useRef<HTMLAudioElement>(null);
   const t = copy[language];
+  const { user, isAuthenticated } = useAuth();
+  const activeBook = books.find((book) => book.title === activeBookId) || books[0];
+  const favoritesQuery = trpc.library.favorites.useQuery(undefined, { enabled: isAuthenticated });
+  const historyQuery = trpc.library.history.useQuery(undefined, { enabled: isAuthenticated });
+  const favoriteMutation = trpc.library.toggleFavorite.useMutation();
+  const historyMutation = trpc.library.saveHistory.useMutation();
   const filteredBooks = useMemo(() => books.filter((book) => {
     const matchesQuery = `${book.title} ${book.subtitle} ${book.author}`.toLowerCase().includes(query.toLowerCase());
     const matchesFavorites = !showFavorites || favorites.includes(book.title);
-    return matchesQuery && matchesFavorites;
-  }), [favorites, query, showFavorites]);
+    const matchesTopic = topicFilter === "all" || book.topic === topicFilter;
+    const matchesDuration = durationFilter === "all" || (durationFilter === "short" ? book.durationMinutes <= 20 : durationFilter === "medium" ? book.durationMinutes > 20 && book.durationMinutes <= 60 : book.durationMinutes > 60);
+    const matchesLanguage = languageFilter === "all" || book.language === languageFilter;
+    return matchesQuery && matchesFavorites && matchesTopic && matchesDuration && matchesLanguage;
+  }), [durationFilter, favorites, languageFilter, query, showFavorites, topicFilter]);
 
   useEffect(() => {
     document.documentElement.classList.toggle("dark", dark);
@@ -165,6 +183,30 @@ export default function Home() {
   }, [history]);
 
   useEffect(() => {
+    if (favoritesQuery.data) setFavorites(favoritesQuery.data.map((item) => item.bookId));
+  }, [favoritesQuery.data]);
+
+  useEffect(() => {
+    if (historyQuery.data?.length) setHistory(historyQuery.data.map((item) => ({ title: item.bookId, chapter: item.chapterId, progress: item.progress / 100, updatedAt: item.lastListenedAt.getTime() })));
+  }, [historyQuery.data]);
+
+  useEffect(() => {
+    const params = new URLSearchParams(location.split("?")[1] || "");
+    const requestedBook = params.get("play");
+    if (requestedBook && books.some((book) => book.title === requestedBook)) {
+      const requestedEntry = history.find((entry) => entry.title === requestedBook);
+      const requestedChapter = Number(params.get("chapter")) || requestedEntry?.chapter || 1;
+      const requestedProgress = requestedEntry?.progress || books.find((book) => book.title === requestedBook)?.progress || 0;
+      setActiveBookId(requestedBook);
+      setActiveChapter(requestedChapter);
+      setProgress(requestedProgress);
+      setCurrentTime(requestedProgress * duration);
+      setPlaying(true);
+      setLocation("/");
+    }
+  }, [duration, history, location, setLocation]);
+
+  useEffect(() => {
     const audio = audioRef.current;
     if (!audio) return;
     audio.playbackRate = speed;
@@ -183,10 +225,11 @@ export default function Home() {
     if (minutes < 60) return `${minutes} min ago`;
     return `${Math.floor(minutes / 60)}h ago`;
   };
-  const recordHistory = (chapter = activeChapter) => {
-    const entry = { title: "Philosophy 101", chapter, progress, updatedAt: Date.now() };
+  const recordHistory = (chapter = activeChapter, bookId = activeBookId, progressOverride = progress) => {
+    const entry = { title: bookId, chapter, progress: progressOverride, updatedAt: Date.now() };
     setHistory((current) => [entry, ...current.filter((item) => item.title !== entry.title)].slice(0, 6));
     localStorage.setItem("bd-last-listened", String(entry.updatedAt));
+    if (isAuthenticated) historyMutation.mutate({ bookId: entry.title, chapterId: entry.chapter, progress: Math.round(entry.progress * 100), }, { onSuccess: () => toast.success("Listening progress synced"), onError: () => toast.error("Could not sync listening progress") });
   };
   const resumeHistory = (entry: { title: string; chapter: number; progress: number }) => {
     setActiveChapter(entry.chapter);
@@ -207,15 +250,26 @@ export default function Home() {
     setCurrentTime(next);
     if (audioRef.current) audioRef.current.currentTime = next;
   };
+  const selectBook = (title: string) => {
+    setActiveBookId(title);
+    setActiveChapter(1);
+    setPlaying(true);
+    setProgress(0);
+    setCurrentTime(0);
+    recordHistory(1, title, 0);
+  };
   const selectChapter = (id: number) => {
     setActiveChapter(id);
     setPlaying(true);
+    recordHistory(id);
     toast.success(`${t.chapter} ${id} selected`);
   };
-  const showComingSoon = () => toast(t.comingSoon, { description: "Bookmarks and listening history are part of the next release." });
+  const showComingSoon = () => toast(t.comingSoon, { description: "Preference controls will arrive in a future release." });
   const toggleFavorite = (title: string) => {
+    const wasFavorite = favorites.includes(title);
     setFavorites((current) => current.includes(title) ? current.filter((item) => item !== title) : [...current, title]);
-    toast(favorites.includes(title) ? `${title} removed from ${t.favorites}` : `${title} saved to ${t.favorites}`);
+    if (isAuthenticated) favoriteMutation.mutate({ bookId: title }, { onSuccess: () => toast.success("Favorites synced"), onError: () => toast.error("Could not sync favorite") });
+    toast(wasFavorite ? `${title} removed from ${t.favorites}` : `${title} saved to ${t.favorites}`);
   };
 
   return (
@@ -234,7 +288,7 @@ export default function Home() {
         <div className="rail-note"><span className="rail-note-line" /><p>“The unexamined life is not worth living.”</p><small>— Socrates</small></div>
         <div className="rail-bottom">
           <button className="nav-item" onClick={() => setDark((value) => !value)}>{dark ? <Sun size={17} /> : <Moon size={17} />}{dark ? "Light mode" : "Dark mode"}</button>
-          <button className="profile-row" onClick={() => toast("Profile settings are coming next.")}><span className="avatar">R</span><span><strong>Reader</strong><small>Quiet learner</small></span><Settings2 size={16} /></button>
+          <button className="profile-row" onClick={() => isAuthenticated ? toast("Your account keeps favorites and listening history in sync.") : startLogin()}><span className="avatar">{user?.name?.slice(0, 1) || "R"}</span><span><strong>{user?.name || "Reader"}</strong><small>{isAuthenticated ? (favoritesQuery.isLoading || historyQuery.isLoading ? "Syncing…" : favoritesQuery.isError || historyQuery.isError ? "Offline mode" : "Synced account") : "Sign in to sync"}</small></span><Settings2 size={16} /></button>
         </div>
       </aside>
 
@@ -253,25 +307,25 @@ export default function Home() {
         </header>
 
         <div className="content-wrap">
-          {showSearch && <div className="search-panel"><Search size={17} /><input autoFocus value={query} onChange={(event) => setQuery(event.target.value)} placeholder={t.searchPlaceholder} aria-label={t.searchPlaceholder} /><button onClick={() => { setQuery(""); setShowSearch(false); }} aria-label="Close search"><X size={16} /></button></div>}
+          {showSearch && <div className="search-panel"><Search size={17} /><input autoFocus value={query} onChange={(event) => setQuery(event.target.value)} placeholder={t.searchPlaceholder} aria-label={t.searchPlaceholder} /><div className="search-filters"><select value={topicFilter} onChange={(event) => setTopicFilter(event.target.value)} aria-label="Topic"><option value="all">All topics</option><option value="philosophy">Philosophy</option><option value="memoir">Memoir</option><option value="practice">Practice</option></select><select value={durationFilter} onChange={(event) => setDurationFilter(event.target.value)} aria-label="Duration"><option value="all">Any duration</option><option value="short">Under 20 min</option><option value="medium">20–60 min</option><option value="long">Over 60 min</option></select><select value={languageFilter} onChange={(event) => setLanguageFilter(event.target.value)} aria-label="Content language"><option value="all">Any language</option><option value="bn">বাংলা</option><option value="en">English</option><option value="de">Deutsch</option></select></div><button onClick={() => { setQuery(""); setTopicFilter("all"); setDurationFilter("all"); setLanguageFilter("all"); setShowSearch(false); }} aria-label="Close search"><X size={16} /></button></div>}
           <section className="welcome-row"><div><p className="eyebrow">{t.greeting} <span className="eyebrow-dot" /></p><h1>{t.heroTitle}</h1><p className="lede">{t.heroBody}</p></div><button className="round-action" onClick={showComingSoon} aria-label="Adjust preferences"><SlidersHorizontal size={19} /></button></section>
 
           <section className="feature-layout">
             <div className="feature-art"><img src={artwork.hero} alt="Abstract indigo river-map artwork" /><span className="river-line river-line-art" aria-hidden="true"><i /></span><div className="art-caption"><span>01</span><span>THE LISTENING EDITION</span></div></div>
-            <div className="feature-copy"><div className="tag-row"><span className="pill accent-pill">{t.inProgress}</span><span className="muted-label">{t.bengali} · 4 {t.chapters}</span></div><h2>Philosophy <em>101</em></h2><p className="feature-subtitle">{language === "bn" ? "একটি কোমল শুরু" : language === "de" ? "Ein sanfter Anfang" : "A gentle beginning"}</p><p className="feature-description">A slow walk through the ideas that shape a life: wonder, attention, and the courage to ask a better question.</p><div className="feature-meta"><span><Clock3 size={15} /> 1h 21m</span><span><Headphones size={15} /> 4.8k listeners</span></div><div className="feature-cta"><button className="primary-button" onClick={togglePlaying}>{playing ? <Pause size={17} fill="currentColor" /> : <Play size={17} fill="currentColor" />}{playing ? "Pause" : t.continueListening}<span className="button-arrow"><ArrowRight size={16} /></span></button><button className="text-button" onClick={() => toast.success(t.save)}><Plus size={17} /> {t.save}</button></div></div>
+            <div className="feature-copy"><div className="tag-row"><span className="pill accent-pill">{t.inProgress}</span><span className="muted-label">{t.bengali} · 4 {t.chapters}</span></div><h2>{activeBook.title}</h2><p className="feature-subtitle">{language === "bn" ? "একটি কোমল শুরু" : language === "de" ? "Ein sanfter Anfang" : "A gentle beginning"}</p><p className="feature-description">A slow walk through the ideas that shape a life: wonder, attention, and the courage to ask a better question.</p><div className="feature-meta"><span><Clock3 size={15} /> 1h 21m</span><span><Headphones size={15} /> 4.8k listeners</span></div><div className="feature-cta"><button className="primary-button" onClick={togglePlaying}>{playing ? <Pause size={17} fill="currentColor" /> : <Play size={17} fill="currentColor" />}{playing ? "Pause" : t.continueListening}<span className="button-arrow"><ArrowRight size={16} /></span></button><button className="text-button" onClick={() => toast.success(t.save)}><Plus size={17} /> {t.save}</button></div></div>
           </section>
 
-          <section className="continue-section"><div className="section-heading"><div><p className="eyebrow">{t.inProgress} <span className="bengali-seal">শোনা · ০১</span></p><h2>{t.continueListening}</h2></div><button className="link-button" onClick={showComingSoon}>{t.browse} <ArrowRight size={15} /></button></div><div className="continue-card"><img src={artwork.hero} alt="Philosophy 101 cover" /><div className="continue-info"><div className="continue-info-top"><div><strong>Philosophy 101</strong><span>{t.chapter} 01 · {language === "bn" ? "বিস্ময়ের শুরু" : "The beginning of wonder"}</span></div><span className="time-left">{remaining} {t.minutesLeft}</span></div><div className="progress-track"><span style={{ width: `${Math.max(3, progress * 100)}%` }} /><i className="river-line-dot" /></div><div className="continue-bottom"><span>{formatTime(currentTime)} / {formatTime(duration)}</span><button onClick={togglePlaying}>{playing ? <Pause size={15} fill="currentColor" /> : <Play size={15} fill="currentColor" />} {playing ? "Pause" : t.listen}</button></div></div><div className="continue-play"><button onClick={togglePlaying} aria-label={playing ? "Pause playback" : "Play playback"}>{playing ? <Pause size={20} fill="currentColor" /> : <Play size={20} fill="currentColor" />}</button></div></div></section>
+          <section className="continue-section"><div className="section-heading"><div><p className="eyebrow">{t.inProgress} <span className="bengali-seal">শোনা · ০১</span></p><h2>{t.continueListening}</h2></div><button className="link-button" onClick={showComingSoon}>{t.browse} <ArrowRight size={15} /></button></div><div className="continue-card"><img src={activeBook.image} alt={`${activeBook.title} cover`} /><div className="continue-info"><div className="continue-info-top"><div><strong>{activeBook.title}</strong><span>{t.chapter} 01 · {language === "bn" ? "বিস্ময়ের শুরু" : "The beginning of wonder"}</span></div><span className="time-left">{remaining} {t.minutesLeft}</span></div><div className="progress-track"><span style={{ width: `${Math.max(3, progress * 100)}%` }} /><i className="river-line-dot" /></div><div className="continue-bottom"><span>{formatTime(currentTime)} / {formatTime(duration)}</span><button onClick={togglePlaying}>{playing ? <Pause size={15} fill="currentColor" /> : <Play size={15} fill="currentColor" />} {playing ? "Pause" : t.listen}</button></div></div><div className="continue-play"><button onClick={togglePlaying} aria-label={playing ? "Pause playback" : "Play playback"}>{playing ? <Pause size={20} fill="currentColor" /> : <Play size={20} fill="currentColor" />}</button></div></div></section>
 
           <section className="history-section"><div className="section-heading"><div><p className="eyebrow">{t.listeningHistory} <span className="bengali-seal">পথের চিহ্ন</span></p><h2>{t.recentlyPlayed}</h2></div><span className="history-note">{history.length} {history.length === 1 ? "title" : "titles"}</span></div>{history.length ? <div className="history-list">{history.map((entry) => <article className="history-card" key={`${entry.title}-${entry.updatedAt}`}><div className="history-art"><img src={entry.title === "Letters from a River" ? artwork.library : artwork.hero} alt="" /><span>{String(entry.chapter).padStart(2, "0")}</span></div><div className="history-copy"><strong>{entry.title}</strong><span>{t.chapter} {String(entry.chapter).padStart(2, "0")} · {formatRelative(entry.updatedAt)}</span><div className="history-progress"><i style={{ width: `${Math.max(4, entry.progress * 100)}%` }} /></div></div><button className="history-resume" onClick={() => resumeHistory(entry)} aria-label={`${t.resume} ${entry.title}`}><Play size={15} fill="currentColor" /></button></article>)}</div> : <div className="history-empty"><Clock3 size={18} /><span>{t.noHistory}</span></div>}</section>
 
-          <section className="library-section" id="library"><div className="section-heading library-heading"><div><p className="eyebrow">{t.libraryTitle}</p><h2>{t.libraryTitle}</h2></div><div className="filter-tabs"><button className={!showFavorites ? "active" : ""} onClick={() => setShowFavorites(false)}>{t.allBooks}</button><button className={showFavorites ? "active" : ""} onClick={() => setShowFavorites(true)}>{t.favorites} <span className="favorites-count">{favorites.length}</span></button><button>{t.bengali}</button><button>{t.english}</button><button>{t.german}</button></div></div><div className="book-grid">{filteredBooks.length ? filteredBooks.map((book, index) => <article className={`book-card ${index === 1 ? "book-card-offset" : ""}`} key={book.title}><div className="book-image"><img src={book.image} alt="" /><span className="book-tag">{book.tag}</span><button className={`favorite-toggle ${favorites.includes(book.title) ? "is-favorite" : ""}`} onClick={() => toggleFavorite(book.title)} aria-label={`${favorites.includes(book.title) ? "Remove" : "Save"} ${book.title} ${t.favorites}`}>{favorites.includes(book.title) ? "♥" : "♡"}</button><button className="book-play" onClick={() => selectChapter(1)} aria-label={`${t.listen} ${book.title}`}><Play size={15} fill="currentColor" /></button></div><div className="book-details"><span className="book-kicker">{index === 0 ? "PHILOSOPHY" : index === 1 ? "MEMOIR" : "PRACTICE"}</span><h3>{book.title}</h3><p>{book.subtitle}</p><small>{book.author}</small></div></article>) : <div className="empty-library"><Search size={20} /><strong>{t.noResults}</strong><span>{query || showFavorites ? "Try another title or browse all books." : "Save a book to see it here."}</span></div>}</div></section>
+          <section className="library-section" id="library"><div className="section-heading library-heading"><div><p className="eyebrow">{t.libraryTitle}</p><h2>{t.libraryTitle}</h2></div><div className="filter-tabs"><button className={!showFavorites ? "active" : ""} onClick={() => setShowFavorites(false)}>{t.allBooks}</button><button className={showFavorites ? "active" : ""} onClick={() => setShowFavorites(true)}>{t.favorites} <span className="favorites-count">{favorites.length}</span></button><button className={languageFilter === "bn" ? "active" : ""} onClick={() => { setShowFavorites(false); setLanguageFilter("bn"); }}>{t.bengali}</button><button className={languageFilter === "en" ? "active" : ""} onClick={() => { setShowFavorites(false); setLanguageFilter("en"); }}>{t.english}</button><button className={languageFilter === "de" ? "active" : ""} onClick={() => { setShowFavorites(false); setLanguageFilter("de"); }}>{t.german}</button></div></div><div className="book-grid">{filteredBooks.length ? filteredBooks.map((book, index) => <article className={`book-card ${index === 1 ? "book-card-offset" : ""}`} key={book.title} onDoubleClick={() => setLocation(`/book/${encodeURIComponent(book.title)}`)}><div className="book-image"><img src={book.image} alt="" /><span className="book-tag">{book.tag}</span><button className={`favorite-toggle ${favorites.includes(book.title) ? "is-favorite" : ""}`} onClick={() => toggleFavorite(book.title)} aria-label={`${favorites.includes(book.title) ? "Remove" : "Save"} ${book.title} ${t.favorites}`}>{favorites.includes(book.title) ? "♥" : "♡"}</button><button className="book-play" onClick={() => selectBook(book.title)} aria-label={`${t.listen} ${book.title}`}><Play size={15} fill="currentColor" /></button></div><div className="book-details"><span className="book-kicker">{index === 0 ? "PHILOSOPHY" : index === 1 ? "MEMOIR" : "PRACTICE"}</span><h3>{book.title}</h3><p>{book.subtitle}</p><small>{book.author}</small><button className="book-detail-link" onClick={() => setLocation(`/book/${encodeURIComponent(book.title)}`)}>{t.details} <ArrowRight size={13} /></button></div></article>) : <div className="empty-library"><Search size={20} /><strong>{t.noResults}</strong><span>{query || showFavorites ? "Try another title or browse all books." : "Save a book to see it here."}</span></div>}</div></section>
 
           <section className="chapters-section"><div className="section-heading"><div><p className="eyebrow">{t.nowPlaying} <span className="bengali-seal">ভাবনার পথ</span></p><h2>{t.chapters}</h2></div><div className="player-language"><span>{t.audioLanguage}</span><button onClick={() => { const next = language === "bn" ? "en" : language === "en" ? "de" : "bn"; setLanguage(next); }}>{language === "bn" ? "বাংলা" : language === "de" ? "Deutsch" : "English"}<ChevronDown size={14} /></button></div></div><div className="chapter-list"><span className="chapter-rail" aria-hidden="true" />{chapters.map((item) => <button key={item.id} className={`chapter-row ${activeChapter === item.id ? "current" : ""}`} onClick={() => selectChapter(item.id)}><span className="chapter-number">{String(item.id).padStart(2, "0")}</span><span className="chapter-title"><strong>{language === "bn" ? item.bn : item.title}</strong><small>{t.chapter} {String(item.id).padStart(2, "0")}</small></span><span className="chapter-progress">{item.progress > 0 && <i style={{ width: `${item.progress * 100}%` }} />}</span><span className="chapter-duration">{item.duration}</span><span className="chapter-state">{activeChapter === item.id ? <Pause size={16} fill="currentColor" /> : <Play size={16} />}</span></button>)}</div></section>
         </div>
       </main>
 
-      <div className={`player-dock ${playing ? "is-playing" : ""}`}><div className="dock-art"><img src={artwork.hero} alt="" /><span className="dock-bars"><i /><i /><i /><i /></span></div><div className="dock-title"><small>{t.nowPlaying}</small><strong>Philosophy 101</strong><span>{t.chapter} 01 · {language === "bn" ? "বাংলা" : language === "de" ? "Deutsch" : "English"}</span></div><div className="dock-controls"><button onClick={() => seek(-15)} aria-label="Back 15 seconds"><RotateCcw size={17} /></button><button className="dock-play" onClick={togglePlaying} aria-label={playing ? "Pause" : "Play"}>{playing ? <Pause size={18} fill="currentColor" /> : <Play size={18} fill="currentColor" />}</button><button onClick={() => seek(30)} aria-label="Forward 30 seconds"><RotateCw size={17} /></button></div><div className="dock-progress"><div className="dock-times"><span>{formatTime(currentTime)}</span><span>{formatTime(duration)}</span></div><input aria-label="Playback progress" type="range" min="0" max={duration} value={currentTime} onChange={(event) => { const value = Number(event.target.value); setCurrentTime(value); setProgress(value / duration); if (audioRef.current) audioRef.current.currentTime = value; }} /></div><div className="dock-options"><button onClick={() => setSpeed((value) => value === 1 ? 1.25 : value === 1.25 ? 1.5 : 1)}>{speed}×</button><Volume2 size={17} /><button onClick={() => toast(t.comingSoon)} aria-label="More options"><ChevronDown size={16} /></button></div></div>
+      <div className={`player-dock ${playing ? "is-playing" : ""}`}><div className="dock-art"><img src={activeBook.image} alt="" /><span className="dock-bars"><i /><i /><i /><i /></span></div><div className="dock-title"><small>{t.nowPlaying}</small><strong>{activeBook.title}</strong><span>{t.chapter} {activeChapter} · {language === "bn" ? "বাংলা" : language === "de" ? "Deutsch" : "English"}</span></div><div className="dock-controls"><button onClick={() => seek(-15)} aria-label="Back 15 seconds"><RotateCcw size={17} /></button><button className="dock-play" onClick={togglePlaying} aria-label={playing ? "Pause" : "Play"}>{playing ? <Pause size={18} fill="currentColor" /> : <Play size={18} fill="currentColor" />}</button><button onClick={() => seek(30)} aria-label="Forward 30 seconds"><RotateCw size={17} /></button></div><div className="dock-progress"><div className="dock-times"><span>{formatTime(currentTime)}</span><span>{formatTime(duration)}</span></div><input aria-label="Playback progress" type="range" min="0" max={duration} value={currentTime} onChange={(event) => { const value = Number(event.target.value); setCurrentTime(value); setProgress(value / duration); if (audioRef.current) audioRef.current.currentTime = value; }} /></div><div className="dock-options"><button onClick={() => setSpeed((value) => value === 1 ? 1.25 : value === 1.25 ? 1.5 : 1)}>{speed}×</button><Volume2 size={17} /><button onClick={() => toast(t.comingSoon)} aria-label="More options"><ChevronDown size={16} /></button></div></div>
     </div>
   );
 }
