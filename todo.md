@@ -111,3 +111,12 @@
 
 - [x] Re-run offline cached playback, exact position resume after reload, and core library flows after the final seek-slider fix.
 - [x] Validate authenticated favorites, history, and bookmark synchronization, or document that it remains unverified without a logged-in session.
+
+
+## New reported audio regression
+
+- [x] Diagnose the user-reported progress stall and replace the reported low-quality validation source.
+- [x] Identify and replace the faulty audio delivery path with a reliable speech-quality source.
+- [x] Fix playback time/progress synchronization so playback advances continuously after seeking and reload.
+- [x] Re-test online playback, offline cache readiness, exact position resume, and library regressions; target-device subjective quality remains for user confirmation.
+- [x] Save a new checkpoint and synchronize the repaired state to the private GitHub repository.

@@ -110,9 +110,9 @@ const chapters = [
 ];
 
 const books = [
-  { title: "Philosophy 101", subtitle: "A gentle beginning", author: "The listening edition", tag: "Featured", image: artwork.hero, progress: 0.18, topic: "philosophy", durationMinutes: 81, language: "bn", audioSource: "/manus-storage/bangladarshan-philosophy-voice_d5d3ce87.wav", },
-  { title: "Letters from a River", subtitle: "On memory & place", author: "Selected essays", tag: "New", image: artwork.library, progress: 0, topic: "memoir", durationMinutes: 42, language: "en", audioSource: "/manus-storage/bangladarshan-river-voice_bc8b7ca4.wav" },
-  { title: "The Art of Attention", subtitle: "Practices for presence", author: "Short reflections", tag: "12 min", image: artwork.hero, progress: 0, topic: "practice", durationMinutes: 12, language: "de", audioSource: "/manus-storage/bangladarshan-attention-voice_4c80f226.wav" },
+  { title: "Philosophy 101", subtitle: "A gentle beginning", author: "The listening edition", tag: "Featured", image: artwork.hero, progress: 0.18, topic: "philosophy", durationMinutes: 81, language: "bn", audioSource: "/manus-storage/bangladarshan-philosophy-clear-en_b1fb6d31.wav", },
+  { title: "Letters from a River", subtitle: "On memory & place", author: "Selected essays", tag: "New", image: artwork.library, progress: 0, topic: "memoir", durationMinutes: 42, language: "en", audioSource: "/manus-storage/bangladarshan-philosophy-clear-en_b1fb6d31.wav" },
+  { title: "The Art of Attention", subtitle: "Practices for presence", author: "Short reflections", tag: "12 min", image: artwork.hero, progress: 0, topic: "practice", durationMinutes: 12, language: "de", audioSource: "/manus-storage/bangladarshan-philosophy-clear-de_b54d7ea7.wav" },
 ];
 
 function formatTime(seconds: number) {
@@ -214,12 +214,11 @@ export default function Home() {
     const entry = history.find((item) => item.title === activeBookId);
     if (!entry) return;
     const position = entry.positionSeconds ?? Math.round(entry.progress * duration);
-    if (Math.abs(currentTime - position) > 1) {
-      setActiveChapter(entry.chapter);
-      setCurrentTime(position);
-      setProgress(duration ? position / duration : entry.progress);
-    }
-  }, [activeBookId, currentTime, duration, history]);
+    const safePosition = Math.max(0, Math.min(Number.isFinite(duration) ? duration : position, position));
+    setActiveChapter(entry.chapter);
+    setCurrentTime(safePosition);
+    setProgress(duration ? safePosition / duration : entry.progress);
+  }, [activeBookId, duration]);
 
   useEffect(() => {
     localStorage.setItem("bd-favorites", JSON.stringify(favorites));
@@ -392,7 +391,7 @@ export default function Home() {
 
   return (
     <div className="app-shell">
-      <audio ref={audioRef} src={playbackUrl} preload="metadata" onLoadedMetadata={(event) => { const audio = event.currentTarget; setAudioError(false); setDuration(audio.duration); const requestedPosition = pendingSeekRef.current ?? currentTime; const clampedPosition = Math.max(0, Math.min(Number.isFinite(audio.duration) ? audio.duration : 0, requestedPosition)); audio.currentTime = clampedPosition; setCurrentTime(clampedPosition); setProgress(audio.duration ? clampedPosition / audio.duration : 0); pendingSeekRef.current = null; }} onError={() => { setPlaying(false); setAudioError(true); toast.error("This audio could not be loaded. Please try again online."); }} onTimeUpdate={(event) => { const time = event.currentTarget.currentTime; setCurrentTime(time); setProgress(time / (event.currentTarget.duration || duration)); }} onEnded={() => setPlaying(false)} />
+      <audio ref={audioRef} src={playbackUrl} preload="metadata" onLoadedMetadata={(event) => { const audio = event.currentTarget; setAudioError(false); setDuration(audio.duration); const requestedPosition = pendingSeekRef.current ?? currentTime; const clampedPosition = Math.max(0, Math.min(Number.isFinite(audio.duration) ? audio.duration : 0, requestedPosition)); audio.currentTime = clampedPosition; setCurrentTime(clampedPosition); setProgress(audio.duration ? clampedPosition / audio.duration : 0); pendingSeekRef.current = null; }} onError={() => { setPlaying(false); setAudioError(true); toast.error("This audio could not be loaded. Please try again online."); }} onTimeUpdate={(event) => { const audio = event.currentTarget; const time = Number.isFinite(audio.currentTime) ? Math.max(0, Math.min(audio.duration || duration, audio.currentTime)) : 0; setCurrentTime(time); setProgress((audio.duration || duration) ? time / (audio.duration || duration) : 0); }} onEnded={() => { setPlaying(false); setCurrentTime(Number.isFinite(audioRef.current?.duration) ? audioRef.current!.duration : currentTime); }} />
       {audioError && <div className="audio-error" role="alert"><Volume2 size={15} /> Audio unavailable. Check your connection and try again.</div>}
       <aside className={`side-rail ${showMenu ? "side-rail-open" : ""}`}>
         <div className="brand-lockup">

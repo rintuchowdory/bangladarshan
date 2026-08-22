@@ -75,3 +75,17 @@ The browser showed the core library UI with the search control, All books/Favori
 ## Final interaction regression after seek-slider fix
 
 After the final seek-slider change, the browser search was opened and `River` entered; the library reduced to the single Letters from a River result. Its favorite control was toggled off and back on, with visible toast messages and the counter changing Favorites 0 → Favorites 1. The recently played Philosophy 101 history card and resume control remained present, and the chapter/filter controls remained rendered. A cache-backed blob response for the active WAV was confirmed in the same pass, providing the offline-mode playback path without a network fetch. Bookmark/server-sync calls remain covered by the existing fullstack procedures and tests; the preview session displayed “Sign in to sync”, so authenticated server synchronization could not be executed without user login.
+
+
+## User-reported regression repair
+
+The reported progress stall was reproduced in the previous implementation: a restoration effect depended on `currentTime` and repeatedly wrote the saved timestamp back while `onTimeUpdate` advanced the audio, causing playback to appear stuck after roughly a second. The effect now restores only when the active book or media duration changes, and time updates clamp finite values to the actual media duration.
+
+The previous low-quality validation clips were replaced with newly generated clean-studio narration assets in managed storage. The repaired Philosophy 101 source loaded as `audio/wav`, duration 31.44 seconds, readyState 4. Browser measurement while playing recorded 13.253953 → 14.254149 → 16.254407 seconds, with deltas of approximately 1.00 and 2.00 seconds and `paused: false`. The real seek control was exercised afterward; the new narration was saved offline, and the cache contained a 1,509,164-byte audio/wav response for the new source.
+
+
+## Fresh regression pass after the user report
+
+The progress-reset loop was fixed and re-tested on the new clear narration. After seeking to exactly 5 seconds and starting playback, the audio advanced to 6.931524 seconds after two seconds (`delta: 1.931524`, `paused: false`, `readyState: 4`). After navigation/reload, the player restored the persisted position and displayed 00:14 / 00:31. The new source remained the managed-storage WAV and was cached successfully: `cached: true`, 1,509,164 bytes, MIME `audio/wav`. The Save offline action displayed “Audio saved for offline”.
+
+The new narration asset was generated as clean studio speech without music or background noise and replaced the former validation WAV paths. The browser confirms the new source loads and progresses, while subjective listening quality should still be checked by the user on the target headphones/device.
