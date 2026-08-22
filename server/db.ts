@@ -113,11 +113,12 @@ export async function listListeningHistory(userId: number) {
   return db.select().from(listeningHistory).where(eq(listeningHistory.userId, userId)).orderBy(desc(listeningHistory.lastListenedAt)).limit(20);
 }
 
-export async function saveListeningHistory(userId: number, input: { bookId: string; chapterId: number; progress: number }) {
+export async function saveListeningHistory(userId: number, input: { bookId: string; chapterId: number; progress: number; positionSeconds: number }) {
   const db = await getDb();
   if (!db) throw new Error("Database unavailable");
-  await db.insert(listeningHistory).values({ userId, bookId: input.bookId, chapterId: input.chapterId, progress: Math.round(input.progress), lastListenedAt: new Date() }).onDuplicateKeyUpdate({ set: { chapterId: input.chapterId, progress: Math.round(input.progress), lastListenedAt: new Date() } });
-  return { success: true } as const;
+  const positionSeconds = Math.max(0, Math.round(input.positionSeconds));
+  await db.insert(listeningHistory).values({ userId, bookId: input.bookId, chapterId: input.chapterId, progress: Math.round(input.progress), positionSeconds, lastListenedAt: new Date() }).onDuplicateKeyUpdate({ set: { chapterId: input.chapterId, progress: Math.round(input.progress), positionSeconds, lastListenedAt: new Date() } });
+  return { success: true, positionSeconds } as const;
 }
 
 export async function listBookmarks(userId: number, bookId: string) {

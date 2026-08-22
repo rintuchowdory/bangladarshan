@@ -139,9 +139,9 @@ export default function Home() {
   const [query, setQuery] = useState("");
   const [showFavorites, setShowFavorites] = useState(false);
   const [favorites, setFavorites] = useState<string[]>(() => JSON.parse(localStorage.getItem("bd-favorites") || "[]"));
-  const [history, setHistory] = useState<Array<{ title: string; chapter: number; progress: number; updatedAt: number }>>(() => {
+  const [history, setHistory] = useState<Array<{ title: string; chapter: number; progress: number; positionSeconds: number; updatedAt: number }>>(() => {
     const saved = JSON.parse(localStorage.getItem("bd-history") || "[]");
-    return saved.length ? saved : [{ title: "Philosophy 101", chapter: 1, progress: 0.18, updatedAt: Number(localStorage.getItem("bd-last-listened")) || Date.now() }];
+    return saved.length ? saved : [{ title: "Philosophy 101", chapter: 1, progress: 0.18, positionSeconds: 648, updatedAt: Number(localStorage.getItem("bd-last-listened")) || Date.now() }];
   });
   const [showLanguages, setShowLanguages] = useState(false);
   const [topicFilter, setTopicFilter] = useState("all");
@@ -201,6 +201,17 @@ export default function Home() {
   }, [progress]);
 
   useEffect(() => {
+    const entry = history.find((item) => item.title === activeBookId);
+    if (!entry) return;
+    const position = entry.positionSeconds ?? Math.round(entry.progress * duration);
+    if (Math.abs(currentTime - position) > 1) {
+      setActiveChapter(entry.chapter);
+      setCurrentTime(position);
+      setProgress(duration ? position / duration : entry.progress);
+    }
+  }, [activeBookId, currentTime, duration, history]);
+
+  useEffect(() => {
     localStorage.setItem("bd-favorites", JSON.stringify(favorites));
   }, [favorites]);
 
@@ -213,7 +224,7 @@ export default function Home() {
   }, [favoritesQuery.data]);
 
   useEffect(() => {
-    if (historyQuery.data?.length) setHistory(historyQuery.data.map((item) => ({ title: item.bookId, chapter: item.chapterId, progress: item.progress / 100, updatedAt: item.lastListenedAt.getTime() })));
+    if (historyQuery.data?.length) setHistory(historyQuery.data.map((item) => ({ title: item.bookId, chapter: item.chapterId, progress: item.progress / 100, positionSeconds: item.positionSeconds, updatedAt: item.lastListenedAt.getTime() })));
   }, [historyQuery.data]);
 
   useEffect(() => {
@@ -223,10 +234,11 @@ export default function Home() {
       const requestedEntry = history.find((entry) => entry.title === requestedBook);
       const requestedChapter = Number(params.get("chapter")) || requestedEntry?.chapter || 1;
       const requestedProgress = requestedEntry?.progress || books.find((book) => book.title === requestedBook)?.progress || 0;
+      const requestedPosition = requestedEntry?.positionSeconds ?? Math.round(requestedProgress * duration);
       setActiveBookId(requestedBook);
       setActiveChapter(requestedChapter);
-      setProgress(requestedProgress);
-      setCurrentTime(requestedProgress * duration);
+      setProgress(duration ? requestedPosition / duration : requestedProgress);
+      setCurrentTime(requestedPosition);
       setPlaying(true);
       setLocation("/");
     }
@@ -282,16 +294,18 @@ export default function Home() {
     if (minutes < 60) return `${minutes} min ago`;
     return `${Math.floor(minutes / 60)}h ago`;
   };
-  const recordHistory = (chapter = activeChapter, bookId = activeBookId, progressOverride = progress) => {
-    const entry = { title: bookId, chapter, progress: progressOverride, updatedAt: Date.now() };
+  const recordHistory = (chapter = activeChapter, bookId = activeBookId, progressOverride = progress, positionSecondsOverride = currentTime) => {
+    const entry = { title: bookId, chapter, progress: progressOverride, positionSeconds: Math.max(0, Math.round(positionSecondsOverride)), updatedAt: Date.now() };
     setHistory((current) => [entry, ...current.filter((item) => item.title !== entry.title)].slice(0, 6));
     localStorage.setItem("bd-last-listened", String(entry.updatedAt));
-    if (isAuthenticated) historyMutation.mutate({ bookId: entry.title, chapterId: entry.chapter, progress: Math.round(entry.progress * 100), }, { onSuccess: () => toast.success("Listening progress synced"), onError: () => toast.error("Could not sync listening progress") });
+    if (isAuthenticated) historyMutation.mutate({ bookId: entry.title, chapterId: entry.chapter, progress: Math.round(entry.progress * 100), positionSeconds: entry.positionSeconds }, { onSuccess: () => toast.success("Listening progress synced"), onError: () => toast.error("Could not sync listening progress") });
   };
-  const resumeHistory = (entry: { title: string; chapter: number; progress: number }) => {
+  const resumeHistory = (entry: { title: string; chapter: number; progress: number; positionSeconds?: number }) => {
+    const position = entry.positionSeconds ?? Math.round(entry.progress * duration);
+    setActiveBookId(entry.title);
     setActiveChapter(entry.chapter);
-    setProgress(entry.progress);
-    setCurrentTime(entry.progress * duration);
+    setProgress(duration ? position / duration : entry.progress);
+    setCurrentTime(position);
     setPlaying(true);
     toast.success(`${t.resume}: ${entry.title}`);
   };
@@ -302,10 +316,26 @@ export default function Home() {
       return next;
     });
   };
+  useEffect(() => {
+    const persistPosition = () => {
+      const saved = JSON.parse(localStorage.getItem("bd-history") || "[]");
+      const entry = { title: activeBookId, chapter: activeChapter, progress: duration ? currentTime / duration : progress, positionSeconds: Math.max(0, Math.round(currentTime)), updatedAt: Date.now() };
+      localStorage.setItem("bd-history", JSON.stringify([entry, ...saved.filter((item: { title?: string }) => item.title !== activeBookId)].slice(0, 6)));
+    };
+    window.addEventListener("beforeunload", persistPosition);
+    document.addEventListener("visibilitychange", persistPosition);
+    return () => {
+      window.removeEventListener("beforeunload", persistPosition);
+      document.removeEventListener("visibilitychange", persistPosition);
+    };
+  }, [activeBookId, activeChapter, currentTime, duration, progress]);
+
   const seek = (amount: number) => {
     const next = Math.max(0, Math.min(duration, currentTime + amount));
     setCurrentTime(next);
+    setProgress(duration ? next / duration : progress);
     if (audioRef.current) audioRef.current.currentTime = next;
+    recordHistory(activeChapter, activeBookId, duration ? next / duration : progress, next);
   };
   const selectBook = (title: string) => {
     setActiveBookId(title);
@@ -314,12 +344,12 @@ export default function Home() {
     setPlaying(true);
     setProgress(0);
     setCurrentTime(0);
-    recordHistory(1, title, 0);
+    recordHistory(1, title, 0, 0);
   };
   const selectChapter = (id: number) => {
     setActiveChapter(id);
     setPlaying(true);
-    recordHistory(id);
+    recordHistory(id, activeBookId, progress, currentTime);
     toast.success(`${t.chapter} ${id} selected`);
   };
   const showComingSoon = () => toast(t.comingSoon, { description: "Preference controls will arrive in a future release." });

@@ -56,3 +56,21 @@
 - [x] Offline-Modus inklusive Playback aus dem Cache simulieren und bestätigen.
 - [x] Erfolgsstatus der „Save offline“-Aktion sichtbar bestätigen.
 - [x] Danach neuen Checkpoint speichern und GitHub-Sync ausführen.
+
+## Exakte Wiedergabeposition
+
+- [x] Datenmodell um Position in Sekunden pro Hörbuch und Kapitel erweitern.
+- [x] Position beim Abspielen, Pausieren, Seek und Verlassen lokal speichern.
+- [x] Position serverseitig synchronisieren und beim Fortsetzen wiederherstellen.
+- [x] Exakte Wiederaufnahme testen, Checkpoint speichern und GitHub synchronisieren.
+
+## Positionspersistenz-Nachweis
+
+- [x] Seek-Änderungen und Seitenverlassen explizit lokal persistieren.
+- [x] Exakte Wiederaufnahme nach erneutem Öffnen end-to-end prüfen.
+- [x] Nach dem Positionsfix neuen Checkpoint speichern und GitHub-Sync bestätigen.
+
+## Veröffentlichungsnachweis Exact Position
+
+- [ ] Neuen Checkpoint nach der Exact-Position-Änderung speichern.
+- [ ] Aktuellen Stand anschließend nach GitHub pushen und Remote-Status bestätigen.

@@ -38,6 +38,7 @@ export const listeningHistory = mysqlTable("listeningHistory", {
   bookId: varchar("bookId", { length: 120 }).notNull(),
   chapterId: int("chapterId").notNull().default(1),
   progress: int("progress").notNull().default(0),
+  positionSeconds: int("positionSeconds").notNull().default(0),
   lastListenedAt: timestamp("lastListenedAt").defaultNow().notNull(),
 }, (table) => ({ userBookUnique: uniqueIndex("listeningHistory_userId_bookId_unique").on(table.userId, table.bookId) }));
 

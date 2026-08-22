@@ -1,0 +1,1 @@
+ALTER TABLE `listeningHistory` ADD `positionSeconds` int DEFAULT 0 NOT NULL;
