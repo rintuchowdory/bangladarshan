@@ -110,9 +110,9 @@ const chapters = [
 ];
 
 const books = [
-  { title: "Philosophy 101", subtitle: "A gentle beginning", author: "The listening edition", tag: "Featured", image: artwork.hero, progress: 0.18, topic: "philosophy", durationMinutes: 81, language: "bn", audioSource: "/manus-storage/bangladarshan-philosophy-clear-en_b1fb6d31.wav", },
-  { title: "Letters from a River", subtitle: "On memory & place", author: "Selected essays", tag: "New", image: artwork.library, progress: 0, topic: "memoir", durationMinutes: 42, language: "en", audioSource: "/manus-storage/bangladarshan-philosophy-clear-en_b1fb6d31.wav" },
-  { title: "The Art of Attention", subtitle: "Practices for presence", author: "Short reflections", tag: "12 min", image: artwork.hero, progress: 0, topic: "practice", durationMinutes: 12, language: "de", audioSource: "/manus-storage/bangladarshan-philosophy-clear-de_b54d7ea7.wav" },
+  { title: "Philosophy 101", subtitle: "A gentle beginning", author: "The listening edition", tag: "Featured", image: artwork.hero, progress: 0.18, topic: "philosophy", durationMinutes: 81, language: "bn", audioSource: "https://archive.org/download/philosophy_2501_librivox/philosophy_01_russell_128kb.mp3", },
+  { title: "Letters from a River", subtitle: "On memory & place", author: "Selected essays", tag: "New", image: artwork.library, progress: 0, topic: "memoir", durationMinutes: 42, language: "en", audioSource: "https://archive.org/download/philosophy_2501_librivox/philosophy_02_russell_128kb.mp3" },
+  { title: "The Art of Attention", subtitle: "Practices for presence", author: "Short reflections", tag: "12 min", image: artwork.hero, progress: 0, topic: "practice", durationMinutes: 12, language: "de", audioSource: "https://archive.org/download/philosophy_2501_librivox/philosophy_03_russell_128kb.mp3" },
 ];
 
 function formatTime(seconds: number) {

@@ -120,3 +120,11 @@
 - [x] Fix playback time/progress synchronization so playback advances continuously after seeking and reload.
 - [x] Re-test online playback, offline cache readiness, exact position resume, and library regressions; target-device subjective quality remains for user confirmation.
 - [x] Save a new checkpoint and synchronize the repaired state to the private GitHub repository.
+
+
+## Genuine audiobook content correction
+
+- [x] Replace narration/test clips with genuine audiobook speech content, not music or placeholder audio.
+- [x] Verify the active files contain spoken audiobook material and wire them to the catalog.
+- [x] Re-test playback, seek continuation, and exact resume after the content replacement; document the large-file offline cache limitation.
+- [x] Save a new checkpoint and synchronize the genuine audiobook-content release to private GitHub.

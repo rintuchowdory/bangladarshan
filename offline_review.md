@@ -89,3 +89,15 @@ The previous low-quality validation clips were replaced with newly generated cle
 The progress-reset loop was fixed and re-tested on the new clear narration. After seeking to exactly 5 seconds and starting playback, the audio advanced to 6.931524 seconds after two seconds (`delta: 1.931524`, `paused: false`, `readyState: 4`). After navigation/reload, the player restored the persisted position and displayed 00:14 / 00:31. The new source remained the managed-storage WAV and was cached successfully: `cached: true`, 1,509,164 bytes, MIME `audio/wav`. The Save offline action displayed “Audio saved for offline”.
 
 The new narration asset was generated as clean studio speech without music or background noise and replaced the former validation WAV paths. The browser confirms the new source loads and progresses, while subjective listening quality should still be checked by the user on the target headphones/device.
+
+
+## Genuine audiobook correction
+
+The catalog no longer uses the generated narration/test WAVs. Philosophy 101 now points to the real public-domain LibriVox/Internet Archive recording `philosophy_01_russell_128kb.mp3`, which responds as `audio/mpeg` and has a 35:08 duration. The browser loaded the real MP3 at readyState 4 and measured currentTime 22.066867 → 25.067026 over three seconds (`delta: 3.000159`, `paused: false`). The other catalog entries point to chapters 02 and 03 of the same spoken-word audiobook collection. This is audiobook speech, not music. The preview also retains the existing cache/blob offline path, but the first offline save of a full 35-minute MP3 may take longer than the short validation clip.
+
+
+## Real audiobook reload validation
+
+After seeking the real LibriVox chapter to 60 seconds, playback advanced to 61.315783 seconds in two seconds (`delta: 1.315735`, `paused: false`). After reload, the player restored the saved position at approximately 02:34. Once metadata settled, the media element reported the same Internet Archive MP3 source, `duration: 2108.046803` seconds (35:08), and `audio/mpeg` was confirmed in the prior load. The source is a genuine spoken-word audiobook recording, not music.
+
+The app’s full-file offline save was started for the 33.7 MB 128 kbps chapter, but the browser had not completed the cache write during the validation window. The existing cache/blob implementation remains in place; this large external asset needs either a longer first download or a smaller self-hosted chapter segment for dependable offline-first delivery.
