@@ -64,6 +64,10 @@ type Copy = {
   favorites: string;
   searchPlaceholder: string;
   noResults: string;
+  listeningHistory: string;
+  recentlyPlayed: string;
+  resume: string;
+  noHistory: string;
 };
 
 const copy: Record<Language, Copy> = {
@@ -73,7 +77,7 @@ const copy: Record<Language, Copy> = {
     listen: "এখন শুনুন", details: "বইটি দেখুন", continueListening: "শোনা চালিয়ে যান", inProgress: "চলছে",
     minutesLeft: "মিনিট বাকি", libraryTitle: "আপনার লাইব্রেরি", allBooks: "সব বই", bengali: "বাংলা", english: "English", german: "Deutsch",
     chapters: "অধ্যায়", chapter: "অধ্যায়", nowPlaying: "এখন বাজছে", audioLanguage: "অডিও ভাষা", speed: "গতি", nextUp: "এরপর",
-    browse: "লাইব্রেরি দেখুন", comingSoon: "শীঘ্রই আসছে", save: "সংরক্ষণ করুন", favorites: "পছন্দের", searchPlaceholder: "খুঁজুন…", noResults: "কোনও বই পাওয়া যায়নি",
+    browse: "লাইব্রেরি দেখুন", comingSoon: "শীঘ্রই আসছে", save: "সংরক্ষণ করুন", favorites: "পছন্দের", searchPlaceholder: "খুঁজুন…", noResults: "কোনও বই পাওয়া যায়নি", listeningHistory: "শোনার ইতিহাস", recentlyPlayed: "সম্প্রতি শোনা", resume: "আবার শুনুন", noHistory: "এখনও কোনও শোনার ইতিহাস নেই",
   },
   en: {
     navHome: "Home", navLibrary: "Library", navNotes: "Notes", greeting: "A little room to think",
@@ -81,7 +85,7 @@ const copy: Record<Language, Copy> = {
     listen: "Listen now", details: "View book", continueListening: "Continue listening", inProgress: "In progress",
     minutesLeft: "min left", libraryTitle: "Your library", allBooks: "All books", bengali: "বাংলা", english: "English", german: "Deutsch",
     chapters: "chapters", chapter: "Chapter", nowPlaying: "Now listening", audioLanguage: "Audio language", speed: "Speed", nextUp: "Up next",
-    browse: "Browse library", comingSoon: "Coming next", save: "Save for later", favorites: "Favorites", searchPlaceholder: "Search books…", noResults: "No books found",
+    browse: "Browse library", comingSoon: "Coming next", save: "Save for later", favorites: "Favorites", searchPlaceholder: "Search books…", noResults: "No books found", listeningHistory: "Listening history", recentlyPlayed: "Recently played", resume: "Resume", noHistory: "Your listening history will appear here.",
   },
   de: {
     navHome: "Startseite", navLibrary: "Bibliothek", navNotes: "Notizen", greeting: "Ein wenig Raum zum Denken",
@@ -89,7 +93,7 @@ const copy: Record<Language, Copy> = {
     listen: "Jetzt anhören", details: "Buch ansehen", continueListening: "Weiterhören", inProgress: "In Arbeit",
     minutesLeft: "Min. übrig", libraryTitle: "Deine Bibliothek", allBooks: "Alle Bücher", bengali: "বাংলা", english: "English", german: "Deutsch",
     chapters: "Kapitel", chapter: "Kapitel", nowPlaying: "Jetzt hörst du", audioLanguage: "Audiosprache", speed: "Geschwindigkeit", nextUp: "Als Nächstes",
-    browse: "Bibliothek öffnen", comingSoon: "Demnächst", save: "Für später speichern", favorites: "Favoriten", searchPlaceholder: "Bücher suchen…", noResults: "Keine Bücher gefunden",
+    browse: "Bibliothek öffnen", comingSoon: "Demnächst", save: "Für später speichern", favorites: "Favoriten", searchPlaceholder: "Bücher suchen…", noResults: "Keine Bücher gefunden", listeningHistory: "Hörverlauf", recentlyPlayed: "Zuletzt gehört", resume: "Fortsetzen", noHistory: "Dein Hörverlauf erscheint hier.",
   },
 };
 
@@ -125,6 +129,10 @@ export default function Home() {
   const [query, setQuery] = useState("");
   const [showFavorites, setShowFavorites] = useState(false);
   const [favorites, setFavorites] = useState<string[]>(() => JSON.parse(localStorage.getItem("bd-favorites") || "[]"));
+  const [history, setHistory] = useState<Array<{ title: string; chapter: number; progress: number; updatedAt: number }>>(() => {
+    const saved = JSON.parse(localStorage.getItem("bd-history") || "[]");
+    return saved.length ? saved : [{ title: "Philosophy 101", chapter: 1, progress: 0.18, updatedAt: Number(localStorage.getItem("bd-last-listened")) || Date.now() }];
+  });
   const [showLanguages, setShowLanguages] = useState(false);
   const audioRef = useRef<HTMLAudioElement>(null);
   const t = copy[language];
@@ -153,6 +161,10 @@ export default function Home() {
   }, [favorites]);
 
   useEffect(() => {
+    localStorage.setItem("bd-history", JSON.stringify(history));
+  }, [history]);
+
+  useEffect(() => {
     const audio = audioRef.current;
     if (!audio) return;
     audio.playbackRate = speed;
@@ -165,7 +177,31 @@ export default function Home() {
 
   const remaining = useMemo(() => Math.max(1, Math.round((duration * (1 - progress)) / 60)), [duration, progress]);
 
-  const togglePlaying = () => setPlaying((value) => !value);
+  const formatRelative = (timestamp: number) => {
+    const minutes = Math.max(0, Math.floor((Date.now() - timestamp) / 60000));
+    if (minutes < 1) return language === "de" ? "Gerade eben" : language === "bn" ? "এইমাত্র" : "Just now";
+    if (minutes < 60) return `${minutes} min ago`;
+    return `${Math.floor(minutes / 60)}h ago`;
+  };
+  const recordHistory = (chapter = activeChapter) => {
+    const entry = { title: "Philosophy 101", chapter, progress, updatedAt: Date.now() };
+    setHistory((current) => [entry, ...current.filter((item) => item.title !== entry.title)].slice(0, 6));
+    localStorage.setItem("bd-last-listened", String(entry.updatedAt));
+  };
+  const resumeHistory = (entry: { title: string; chapter: number; progress: number }) => {
+    setActiveChapter(entry.chapter);
+    setProgress(entry.progress);
+    setCurrentTime(entry.progress * duration);
+    setPlaying(true);
+    toast.success(`${t.resume}: ${entry.title}`);
+  };
+  const togglePlaying = () => {
+    setPlaying((value) => {
+      const next = !value;
+      recordHistory();
+      return next;
+    });
+  };
   const seek = (amount: number) => {
     const next = Math.max(0, Math.min(duration, currentTime + amount));
     setCurrentTime(next);
@@ -226,6 +262,8 @@ export default function Home() {
           </section>
 
           <section className="continue-section"><div className="section-heading"><div><p className="eyebrow">{t.inProgress} <span className="bengali-seal">শোনা · ০১</span></p><h2>{t.continueListening}</h2></div><button className="link-button" onClick={showComingSoon}>{t.browse} <ArrowRight size={15} /></button></div><div className="continue-card"><img src={artwork.hero} alt="Philosophy 101 cover" /><div className="continue-info"><div className="continue-info-top"><div><strong>Philosophy 101</strong><span>{t.chapter} 01 · {language === "bn" ? "বিস্ময়ের শুরু" : "The beginning of wonder"}</span></div><span className="time-left">{remaining} {t.minutesLeft}</span></div><div className="progress-track"><span style={{ width: `${Math.max(3, progress * 100)}%` }} /><i className="river-line-dot" /></div><div className="continue-bottom"><span>{formatTime(currentTime)} / {formatTime(duration)}</span><button onClick={togglePlaying}>{playing ? <Pause size={15} fill="currentColor" /> : <Play size={15} fill="currentColor" />} {playing ? "Pause" : t.listen}</button></div></div><div className="continue-play"><button onClick={togglePlaying} aria-label={playing ? "Pause playback" : "Play playback"}>{playing ? <Pause size={20} fill="currentColor" /> : <Play size={20} fill="currentColor" />}</button></div></div></section>
+
+          <section className="history-section"><div className="section-heading"><div><p className="eyebrow">{t.listeningHistory} <span className="bengali-seal">পথের চিহ্ন</span></p><h2>{t.recentlyPlayed}</h2></div><span className="history-note">{history.length} {history.length === 1 ? "title" : "titles"}</span></div>{history.length ? <div className="history-list">{history.map((entry) => <article className="history-card" key={`${entry.title}-${entry.updatedAt}`}><div className="history-art"><img src={entry.title === "Letters from a River" ? artwork.library : artwork.hero} alt="" /><span>{String(entry.chapter).padStart(2, "0")}</span></div><div className="history-copy"><strong>{entry.title}</strong><span>{t.chapter} {String(entry.chapter).padStart(2, "0")} · {formatRelative(entry.updatedAt)}</span><div className="history-progress"><i style={{ width: `${Math.max(4, entry.progress * 100)}%` }} /></div></div><button className="history-resume" onClick={() => resumeHistory(entry)} aria-label={`${t.resume} ${entry.title}`}><Play size={15} fill="currentColor" /></button></article>)}</div> : <div className="history-empty"><Clock3 size={18} /><span>{t.noHistory}</span></div>}</section>
 
           <section className="library-section" id="library"><div className="section-heading library-heading"><div><p className="eyebrow">{t.libraryTitle}</p><h2>{t.libraryTitle}</h2></div><div className="filter-tabs"><button className={!showFavorites ? "active" : ""} onClick={() => setShowFavorites(false)}>{t.allBooks}</button><button className={showFavorites ? "active" : ""} onClick={() => setShowFavorites(true)}>{t.favorites} <span className="favorites-count">{favorites.length}</span></button><button>{t.bengali}</button><button>{t.english}</button><button>{t.german}</button></div></div><div className="book-grid">{filteredBooks.length ? filteredBooks.map((book, index) => <article className={`book-card ${index === 1 ? "book-card-offset" : ""}`} key={book.title}><div className="book-image"><img src={book.image} alt="" /><span className="book-tag">{book.tag}</span><button className={`favorite-toggle ${favorites.includes(book.title) ? "is-favorite" : ""}`} onClick={() => toggleFavorite(book.title)} aria-label={`${favorites.includes(book.title) ? "Remove" : "Save"} ${book.title} ${t.favorites}`}>{favorites.includes(book.title) ? "♥" : "♡"}</button><button className="book-play" onClick={() => selectChapter(1)} aria-label={`${t.listen} ${book.title}`}><Play size={15} fill="currentColor" /></button></div><div className="book-details"><span className="book-kicker">{index === 0 ? "PHILOSOPHY" : index === 1 ? "MEMOIR" : "PRACTICE"}</span><h3>{book.title}</h3><p>{book.subtitle}</p><small>{book.author}</small></div></article>) : <div className="empty-library"><Search size={20} /><strong>{t.noResults}</strong><span>{query || showFavorites ? "Try another title or browse all books." : "Save a book to see it here."}</span></div>}</div></section>
 
