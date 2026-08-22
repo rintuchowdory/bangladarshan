@@ -101,3 +101,18 @@ The catalog no longer uses the generated narration/test WAVs. Philosophy 101 now
 After seeking the real LibriVox chapter to 60 seconds, playback advanced to 61.315783 seconds in two seconds (`delta: 1.315735`, `paused: false`). After reload, the player restored the saved position at approximately 02:34. Once metadata settled, the media element reported the same Internet Archive MP3 source, `duration: 2108.046803` seconds (35:08), and `audio/mpeg` was confirmed in the prior load. The source is a genuine spoken-word audiobook recording, not music.
 
 The app’s full-file offline save was started for the 33.7 MB 128 kbps chapter, but the browser had not completed the cache write during the validation window. The existing cache/blob implementation remains in place; this large external asset needs either a longer first download or a smaller self-hosted chapter segment for dependable offline-first delivery.
+
+
+## Bengali and German voice-track validation
+
+The language selector now changes the actual audio source, not only the interface text. English uses the real LibriVox spoken-word MP3. Bengali uses `/manus-storage/bangladarshan-philosophy-bengali-audiobook_201da9e3.wav`; browser measurement reported duration 50.64 seconds, readyState 4, and 1.925578 seconds of advancement over two seconds. German uses `/manus-storage/bangladarshan-philosophy-german-audiobook_07db5bad.wav`; browser measurement reported duration 59.36 seconds, readyState 4, and 1.932149 seconds of advancement over two seconds. The German track was saved through the real offline control and the UI confirmed “Audio saved for offline listening”.
+
+
+## Per-language playback persistence
+
+The language selector now changes the actual player source. Bengali loaded the uploaded 50.64-second WAV and advanced 1.925578 seconds during a two-second playback measurement. German loaded the uploaded 59.36-second WAV and advanced 1.932149 seconds. German and Bengali both completed the offline-save flow with the visible success confirmation. A controlled persistence check stored separate records for Bengali at 8 seconds, German at 6 seconds, and English at 154 seconds under the same book, proving language-specific local resume state. Reloading in Bengali restored approximately 8 seconds. The Bengali and German files are generated audiobook-style narration tracks, while the English file is the public-domain LibriVox recording.
+
+
+## Final localized cache and reload checks
+
+Direct Cache Storage inspection confirmed the Bengali WAV entry exists with 2,430,764 bytes and `audio/wav`; loading it through a blob URL produced valid metadata with a 50.64-second duration. The German entry exists with 2,849,324 bytes and `audio/wav`; loading it through a blob URL produced valid metadata with a 59.36-second duration. German playback was saved at 6.76 seconds and reloaded at 7 seconds, confirming language-specific resume. Local history simultaneously retained English at 154 seconds, Bengali at 8 seconds, and German at 7 seconds.

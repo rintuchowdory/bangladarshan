@@ -128,3 +128,27 @@
 - [x] Verify the active files contain spoken audiobook material and wire them to the catalog.
 - [x] Re-test playback, seek continuation, and exact resume after the content replacement; document the large-file offline cache limitation.
 - [x] Save a new checkpoint and synchronize the genuine audiobook-content release to private GitHub.
+
+
+## Multilingual audiobook voice tracks
+
+- [x] Add real Bengali spoken audiobook audio alongside English.
+- [x] Add real German spoken audiobook audio alongside English.
+- [x] Connect language selection to the corresponding audio source and preserve per-language progress.
+- [x] Validate Bengali, English, and German playback, seeking, resume, and offline readiness.
+- [x] Save a multilingual-audio checkpoint and synchronize it to private GitHub.
+
+
+## Multilingual audio follow-up corrections
+
+- [x] Document Bengali and German as generated audiobook-style narration tracks rather than claim them as public-domain audiobook recordings.
+- [x] Store and restore playback position independently for each book and selected audio language.
+- [x] Run fresh Bengali and German seek, reload/resume, and offline-cache checks after the persistence change.
+- [x] Save the corrected multilingual checkpoint and push the updated private GitHub branch.
+
+
+## Final multilingual verification gaps
+
+- [x] Verify German position restoration after reload after saving its language-specific position.
+- [x] Inspect Bengali and German cache entries directly and verify blob playback from cache.
+- [x] Save a new checkpoint after these final corrections and confirm the updated private GitHub main branch.

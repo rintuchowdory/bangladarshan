@@ -110,10 +110,16 @@ const chapters = [
 ];
 
 const books = [
-  { title: "Philosophy 101", subtitle: "A gentle beginning", author: "The listening edition", tag: "Featured", image: artwork.hero, progress: 0.18, topic: "philosophy", durationMinutes: 81, language: "bn", audioSource: "https://archive.org/download/philosophy_2501_librivox/philosophy_01_russell_128kb.mp3", },
-  { title: "Letters from a River", subtitle: "On memory & place", author: "Selected essays", tag: "New", image: artwork.library, progress: 0, topic: "memoir", durationMinutes: 42, language: "en", audioSource: "https://archive.org/download/philosophy_2501_librivox/philosophy_02_russell_128kb.mp3" },
-  { title: "The Art of Attention", subtitle: "Practices for presence", author: "Short reflections", tag: "12 min", image: artwork.hero, progress: 0, topic: "practice", durationMinutes: 12, language: "de", audioSource: "https://archive.org/download/philosophy_2501_librivox/philosophy_03_russell_128kb.mp3" },
+  { title: "Philosophy 101", subtitle: "A gentle beginning", author: "The listening edition", tag: "Featured", image: artwork.hero, progress: 0.18, topic: "philosophy", durationMinutes: 81, language: "bn" },
+  { title: "Letters from a River", subtitle: "On memory & place", author: "Selected essays", tag: "New", image: artwork.library, progress: 0, topic: "memoir", durationMinutes: 42, language: "en" },
+  { title: "The Art of Attention", subtitle: "Practices for presence", author: "Short reflections", tag: "12 min", image: artwork.hero, progress: 0, topic: "practice", durationMinutes: 12, language: "de" },
 ];
+
+const languageAudioSources: Record<Language, string> = {
+  en: "https://archive.org/download/philosophy_2501_librivox/philosophy_01_russell_128kb.mp3",
+  bn: "/manus-storage/bangladarshan-philosophy-bengali-audiobook_201da9e3.wav",
+  de: "/manus-storage/bangladarshan-philosophy-german-audiobook_07db5bad.wav",
+};
 
 function formatTime(seconds: number) {
   const safe = Number.isFinite(seconds) ? seconds : 0;
@@ -125,7 +131,7 @@ export default function Home() {
   const [isOnline, setIsOnline] = useState(() => navigator.onLine);
   const [offlineReady, setOfflineReady] = useState(false);
   const [isCaching, setIsCaching] = useState(false);
-  const [playbackUrl, setPlaybackUrl] = useState(books[0].audioSource);
+  const [playbackUrl, setPlaybackUrl] = useState(languageAudioSources.en);
   const [dark, setDark] = useState(() => localStorage.getItem("bd-theme") === "dark");
   const [playing, setPlaying] = useState(false);
   const [audioError, setAudioError] = useState(false);
@@ -140,9 +146,9 @@ export default function Home() {
   const [query, setQuery] = useState("");
   const [showFavorites, setShowFavorites] = useState(false);
   const [favorites, setFavorites] = useState<string[]>(() => JSON.parse(localStorage.getItem("bd-favorites") || "[]"));
-  const [history, setHistory] = useState<Array<{ title: string; chapter: number; progress: number; positionSeconds: number; updatedAt: number }>>(() => {
-    const saved = JSON.parse(localStorage.getItem("bd-history") || "[]");
-    return saved.length ? saved : [{ title: "Philosophy 101", chapter: 1, progress: 0.18, positionSeconds: 648, updatedAt: Number(localStorage.getItem("bd-last-listened")) || Date.now() }];
+  const [history, setHistory] = useState<Array<{ title: string; language: Language; chapter: number; progress: number; positionSeconds: number; updatedAt: number }>>(() => {
+    const saved = JSON.parse(localStorage.getItem("bd-history") || "[]").map((item: { title: string; language?: Language; chapter: number; progress: number; positionSeconds?: number; updatedAt: number }) => ({ ...item, language: item.language || "en", positionSeconds: item.positionSeconds ?? Math.round(item.progress * 3600) }));
+    return saved.length ? saved : [{ title: "Philosophy 101", language: "en", chapter: 1, progress: 0.18, positionSeconds: 648, updatedAt: Number(localStorage.getItem("bd-last-listened")) || Date.now() }];
   });
   const [showLanguages, setShowLanguages] = useState(false);
   const [topicFilter, setTopicFilter] = useState("all");
@@ -154,6 +160,7 @@ export default function Home() {
   const t = copy[language];
   const { user, isAuthenticated } = useAuth();
   const activeBook = books.find((book) => book.title === activeBookId) || books[0];
+  const activeAudioSource = languageAudioSources[language];
   const favoritesQuery = trpc.library.favorites.useQuery(undefined, { enabled: isAuthenticated });
   const historyQuery = trpc.library.history.useQuery(undefined, { enabled: isAuthenticated });
   const favoriteMutation = trpc.library.toggleFavorite.useMutation();
@@ -170,12 +177,12 @@ export default function Home() {
   useEffect(() => {
     let objectUrl: string | undefined;
     setAudioError(false);
-    setPlaybackUrl(activeBook.audioSource);
-    caches.open("bangladarshan-v1").then((cache) => cache.match(activeBook.audioSource)).then((response) => response?.blob()).then((blob) => {
+    setPlaybackUrl(activeAudioSource);
+    caches.open("bangladarshan-v1").then((cache) => cache.match(activeAudioSource)).then((response) => response?.blob()).then((blob) => {
       if (blob) { objectUrl = URL.createObjectURL(blob); setPlaybackUrl(objectUrl); }
     }).catch(() => undefined);
     return () => { if (objectUrl) URL.revokeObjectURL(objectUrl); };
-  }, [activeBook.audioSource]);
+  }, [activeAudioSource]);
 
   useEffect(() => {
     const onOnline = () => setIsOnline(true);
@@ -198,27 +205,27 @@ export default function Home() {
   useEffect(() => {
     let cancelled = false;
     setOfflineReady(false);
-    caches.open("bangladarshan-v1").then((cache) => cache.match(activeBook.audioSource)).then((response) => {
+    caches.open("bangladarshan-v1").then((cache) => cache.match(activeAudioSource)).then((response) => {
       if (!cancelled) setOfflineReady(Boolean(response));
     }).catch(() => {
       if (!cancelled) setOfflineReady(false);
     });
     return () => { cancelled = true; };
-  }, [activeBook.audioSource]);
+  }, [activeAudioSource]);
 
   useEffect(() => {
     localStorage.setItem("bd-progress", String(progress));
   }, [progress]);
 
   useEffect(() => {
-    const entry = history.find((item) => item.title === activeBookId);
+    const entry = history.find((item) => item.title === activeBookId && item.language === language);
     if (!entry) return;
     const position = entry.positionSeconds ?? Math.round(entry.progress * duration);
     const safePosition = Math.max(0, Math.min(Number.isFinite(duration) ? duration : position, position));
     setActiveChapter(entry.chapter);
     setCurrentTime(safePosition);
     setProgress(duration ? safePosition / duration : entry.progress);
-  }, [activeBookId, duration]);
+  }, [activeBookId, duration, language]);
 
   useEffect(() => {
     localStorage.setItem("bd-favorites", JSON.stringify(favorites));
@@ -233,7 +240,7 @@ export default function Home() {
   }, [favoritesQuery.data]);
 
   useEffect(() => {
-    if (historyQuery.data?.length) setHistory(historyQuery.data.map((item) => ({ title: item.bookId, chapter: item.chapterId, progress: item.progress / 100, positionSeconds: item.positionSeconds, updatedAt: item.lastListenedAt.getTime() })));
+    if (historyQuery.data?.length) setHistory(historyQuery.data.map((item) => ({ title: item.bookId, language: "en" as Language, chapter: item.chapterId, progress: item.progress / 100, positionSeconds: item.positionSeconds, updatedAt: item.lastListenedAt.getTime() })));
   }, [historyQuery.data]);
 
   useEffect(() => {
@@ -283,11 +290,11 @@ export default function Home() {
     try {
       const controller = new AbortController();
       const timeout = window.setTimeout(() => controller.abort(), 120000);
-      const response = await fetch(activeBook.audioSource, { mode: "cors", signal: controller.signal });
+      const response = await fetch(activeAudioSource, { mode: "cors", signal: controller.signal });
       window.clearTimeout(timeout);
       if (!response.ok) throw new Error("Audio request failed");
       const cache = await caches.open("bangladarshan-v1");
-      await cache.put(activeBook.audioSource, response.clone());
+      await cache.put(activeAudioSource, response.clone());
       setOfflineReady(true);
       localStorage.setItem(`bd-audio-cached:${activeBook.title}`, "true");
       toast.success("Audio saved for offline listening");
@@ -305,14 +312,15 @@ export default function Home() {
     return `${Math.floor(minutes / 60)}h ago`;
   };
   const recordHistory = (chapter = activeChapter, bookId = activeBookId, progressOverride = progress, positionSecondsOverride = currentTime) => {
-    const entry = { title: bookId, chapter, progress: progressOverride, positionSeconds: Math.max(0, Math.round(positionSecondsOverride)), updatedAt: Date.now() };
-    setHistory((current) => [entry, ...current.filter((item) => item.title !== entry.title)].slice(0, 6));
+    const entry = { title: bookId, language, chapter, progress: progressOverride, positionSeconds: Math.max(0, Math.round(positionSecondsOverride)), updatedAt: Date.now() };
+    setHistory((current) => [entry, ...current.filter((item) => !(item.title === entry.title && item.language === entry.language))].slice(0, 12));
     localStorage.setItem("bd-last-listened", String(entry.updatedAt));
     if (isAuthenticated) historyMutation.mutate({ bookId: entry.title, chapterId: entry.chapter, progress: Math.round(entry.progress * 100), positionSeconds: entry.positionSeconds }, { onSuccess: () => toast.success("Listening progress synced"), onError: () => toast.error("Could not sync listening progress") });
   };
-  const resumeHistory = (entry: { title: string; chapter: number; progress: number; positionSeconds?: number }) => {
+  const resumeHistory = (entry: { title: string; language?: Language; chapter: number; progress: number; positionSeconds?: number }) => {
     const position = entry.positionSeconds ?? Math.round(entry.progress * duration);
     setActiveBookId(entry.title);
+    if (entry.language) setLanguage(entry.language);
     setActiveChapter(entry.chapter);
     setProgress(duration ? position / duration : entry.progress);
     setCurrentTime(position);
@@ -329,8 +337,8 @@ export default function Home() {
   useEffect(() => {
     const persistPosition = () => {
       const saved = JSON.parse(localStorage.getItem("bd-history") || "[]");
-      const entry = { title: activeBookId, chapter: activeChapter, progress: duration ? currentTime / duration : progress, positionSeconds: Math.max(0, Math.round(currentTime)), updatedAt: Date.now() };
-      localStorage.setItem("bd-history", JSON.stringify([entry, ...saved.filter((item: { title?: string }) => item.title !== activeBookId)].slice(0, 6)));
+      const entry = { title: activeBookId, language, chapter: activeChapter, progress: duration ? currentTime / duration : progress, positionSeconds: Math.max(0, Math.round(currentTime)), updatedAt: Date.now() };
+      localStorage.setItem("bd-history", JSON.stringify([entry, ...saved.filter((item: { title?: string; language?: Language }) => !(item.title === activeBookId && (item.language || "en") === language))].slice(0, 12)));
     };
     window.addEventListener("beforeunload", persistPosition);
     document.addEventListener("visibilitychange", persistPosition);
@@ -338,7 +346,7 @@ export default function Home() {
       window.removeEventListener("beforeunload", persistPosition);
       document.removeEventListener("visibilitychange", persistPosition);
     };
-  }, [activeBookId, activeChapter, currentTime, duration, progress]);
+  }, [activeBookId, activeChapter, currentTime, duration, language, progress]);
 
   const seekTo = (value: number) => {
     const next = Math.max(0, Math.min(duration, value));
