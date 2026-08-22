@@ -110,9 +110,9 @@ const chapters = [
 ];
 
 const books = [
-  { title: "Philosophy 101", subtitle: "A gentle beginning", author: "The listening edition", tag: "Featured", image: artwork.hero, progress: 0.18, topic: "philosophy", durationMinutes: 81, language: "bn", audioSource: "https://upload.wikimedia.org/wikipedia/commons/6/6b/Spoken_Wikipedia_-_M-105.ogg", },
-  { title: "Letters from a River", subtitle: "On memory & place", author: "Selected essays", tag: "New", image: artwork.library, progress: 0, topic: "memoir", durationMinutes: 42, language: "en", audioSource: "https://archive.org/download/philosophy_2501_librivox/philosophy_02_russell_64kb.mp3" },
-  { title: "The Art of Attention", subtitle: "Practices for presence", author: "Short reflections", tag: "12 min", image: artwork.hero, progress: 0, topic: "practice", durationMinutes: 12, language: "de", audioSource: "https://archive.org/download/philosophy_2501_librivox/philosophy_03_russell_64kb.mp3" },
+  { title: "Philosophy 101", subtitle: "A gentle beginning", author: "The listening edition", tag: "Featured", image: artwork.hero, progress: 0.18, topic: "philosophy", durationMinutes: 81, language: "bn", audioSource: "/manus-storage/bangladarshan-philosophy-voice_d5d3ce87.wav", },
+  { title: "Letters from a River", subtitle: "On memory & place", author: "Selected essays", tag: "New", image: artwork.library, progress: 0, topic: "memoir", durationMinutes: 42, language: "en", audioSource: "/manus-storage/bangladarshan-river-voice_bc8b7ca4.wav" },
+  { title: "The Art of Attention", subtitle: "Practices for presence", author: "Short reflections", tag: "12 min", image: artwork.hero, progress: 0, topic: "practice", durationMinutes: 12, language: "de", audioSource: "/manus-storage/bangladarshan-attention-voice_4c80f226.wav" },
 ];
 
 function formatTime(seconds: number) {
@@ -150,6 +150,7 @@ export default function Home() {
   const [languageFilter, setLanguageFilter] = useState("all");
   const [location, setLocation] = useLocation();
   const audioRef = useRef<HTMLAudioElement>(null);
+  const pendingSeekRef = useRef<number | null>(null);
   const t = copy[language];
   const { user, isAuthenticated } = useAuth();
   const activeBook = books.find((book) => book.title === activeBookId) || books[0];
@@ -263,17 +264,18 @@ export default function Home() {
     const audio = audioRef.current;
     if (!audio) return;
     audio.playbackRate = speed;
+    const startWhenReady = () => audio.play().catch(() => setPlaying(false));
     if (playing) {
       if (audio.readyState < 2) {
         audio.load();
-        audio.addEventListener("canplay", () => audio.play().catch(() => setPlaying(false)), { once: true });
+        audio.addEventListener("canplay", startWhenReady, { once: true });
       } else {
-        audio.play().catch(() => setPlaying(false));
+        startWhenReady();
       }
     } else {
       audio.pause();
     }
-  }, [playing, speed]);
+  }, [playbackUrl, playing, speed]);
 
   const remaining = useMemo(() => Math.max(1, Math.round((duration * (1 - progress)) / 60)), [duration, progress]);
   const cacheAudioForOffline = async () => {
@@ -339,11 +341,30 @@ export default function Home() {
     };
   }, [activeBookId, activeChapter, currentTime, duration, progress]);
 
+  const seekTo = (value: number) => {
+    const next = Math.max(0, Math.min(duration, value));
+    pendingSeekRef.current = next;
+    setCurrentTime(next);
+    setProgress(duration ? next / duration : 0);
+    const audio = audioRef.current;
+    if (audio && audio.readyState >= 1) {
+      audio.currentTime = next;
+      pendingSeekRef.current = null;
+      if (playing) audio.play().catch(() => setPlaying(false));
+    }
+    recordHistory(activeChapter, activeBookId, duration ? next / duration : 0, next);
+  };
   const seek = (amount: number) => {
     const next = Math.max(0, Math.min(duration, currentTime + amount));
+    pendingSeekRef.current = next;
     setCurrentTime(next);
     setProgress(duration ? next / duration : progress);
-    if (audioRef.current) audioRef.current.currentTime = next;
+    const audio = audioRef.current;
+    if (audio && audio.readyState >= 1) {
+      audio.currentTime = next;
+      pendingSeekRef.current = null;
+      if (playing) audio.play().catch(() => setPlaying(false));
+    }
     recordHistory(activeChapter, activeBookId, duration ? next / duration : progress, next);
   };
   const selectBook = (title: string) => {
@@ -371,7 +392,7 @@ export default function Home() {
 
   return (
     <div className="app-shell">
-      <audio ref={audioRef} src={playbackUrl} preload="metadata" onLoadedMetadata={(event) => { setAudioError(false); setDuration(event.currentTarget.duration); }} onError={() => { setPlaying(false); setAudioError(true); toast.error("This audio could not be loaded. Please try again online."); }} onTimeUpdate={(event) => { setCurrentTime(event.currentTarget.currentTime); setProgress(event.currentTarget.currentTime / (event.currentTarget.duration || duration)); }} onEnded={() => setPlaying(false)} />
+      <audio ref={audioRef} src={playbackUrl} preload="metadata" onLoadedMetadata={(event) => { const audio = event.currentTarget; setAudioError(false); setDuration(audio.duration); const requestedPosition = pendingSeekRef.current ?? currentTime; const clampedPosition = Math.max(0, Math.min(Number.isFinite(audio.duration) ? audio.duration : 0, requestedPosition)); audio.currentTime = clampedPosition; setCurrentTime(clampedPosition); setProgress(audio.duration ? clampedPosition / audio.duration : 0); pendingSeekRef.current = null; }} onError={() => { setPlaying(false); setAudioError(true); toast.error("This audio could not be loaded. Please try again online."); }} onTimeUpdate={(event) => { const time = event.currentTarget.currentTime; setCurrentTime(time); setProgress(time / (event.currentTarget.duration || duration)); }} onEnded={() => setPlaying(false)} />
       {audioError && <div className="audio-error" role="alert"><Volume2 size={15} /> Audio unavailable. Check your connection and try again.</div>}
       <aside className={`side-rail ${showMenu ? "side-rail-open" : ""}`}>
         <div className="brand-lockup">
@@ -423,7 +444,7 @@ export default function Home() {
         </div>
       </main>
 
-      <div className={`player-dock ${playing ? "is-playing" : ""}`}><div className="dock-art"><img src={activeBook.image} alt="" /><span className="dock-bars"><i /><i /><i /><i /></span></div><div className="dock-title"><small>{t.nowPlaying}</small><strong>{activeBook.title}</strong><span>{t.chapter} {activeChapter} · {language === "bn" ? "বাংলা" : language === "de" ? "Deutsch" : "English"}</span></div><div className="dock-controls"><button onClick={() => seek(-15)} aria-label="Back 15 seconds"><RotateCcw size={17} /></button><button className="dock-play" onClick={togglePlaying} aria-label={playing ? "Pause" : "Play"}>{playing ? <Pause size={18} fill="currentColor" /> : <Play size={18} fill="currentColor" />}</button><button onClick={() => seek(30)} aria-label="Forward 30 seconds"><RotateCw size={17} /></button></div><div className="dock-progress"><div className="dock-times"><span>{formatTime(currentTime)}</span><span>{formatTime(duration)}</span></div><input aria-label="Playback progress" type="range" min="0" max={duration} value={currentTime} onChange={(event) => { const value = Number(event.target.value); setCurrentTime(value); setProgress(value / duration); if (audioRef.current) audioRef.current.currentTime = value; }} /></div><div className="dock-options"><button onClick={() => setSpeed((value) => value === 1 ? 1.25 : value === 1.25 ? 1.5 : 1)}>{speed}×</button><Volume2 size={17} /><button onClick={() => toast(t.comingSoon)} aria-label="More options"><ChevronDown size={16} /></button></div></div>
+      <div className={`player-dock ${playing ? "is-playing" : ""}`}><div className="dock-art"><img src={activeBook.image} alt="" /><span className="dock-bars"><i /><i /><i /><i /></span></div><div className="dock-title"><small>{t.nowPlaying}</small><strong>{activeBook.title}</strong><span>{t.chapter} {activeChapter} · {language === "bn" ? "বাংলা" : language === "de" ? "Deutsch" : "English"}</span></div><div className="dock-controls"><button onClick={() => seek(-15)} aria-label="Back 15 seconds"><RotateCcw size={17} /></button><button className="dock-play" onClick={togglePlaying} aria-label={playing ? "Pause" : "Play"}>{playing ? <Pause size={18} fill="currentColor" /> : <Play size={18} fill="currentColor" />}</button><button onClick={() => seek(30)} aria-label="Forward 30 seconds"><RotateCw size={17} /></button></div><div className="dock-progress"><div className="dock-times"><span>{formatTime(currentTime)}</span><span>{formatTime(duration)}</span></div><input aria-label="Playback progress" type="range" min="0" max={duration} value={currentTime} onChange={(event) => seekTo(Number(event.target.value))} /></div><div className="dock-options"><button onClick={() => setSpeed((value) => value === 1 ? 1.25 : value === 1.25 ? 1.5 : 1)}>{speed}×</button><Volume2 size={17} /><button onClick={() => toast(t.comingSoon)} aria-label="More options"><ChevronDown size={16} /></button></div></div>
     </div>
   );
 }

@@ -87,4 +87,21 @@
 
 - [x] Neue Wikimedia-Sprachquelle offline speichern und als Cache-Quelle laden.
 - [x] Suche, Favoriten, Hörverlauf, exakte Position und Bookmarks nach dem Audiofix erneut im Browser prüfen; Auth/Sync bleibt ohne Anmeldung unbestätigt.
-- [ ] Nach bestandener Gesamtprüfung neuen Checkpoint speichern und den aktualisierten Stand nach GitHub pushen.
+- [x] Nach bestandener Gesamtprüfung neuen Checkpoint speichern und den aktualisierten Stand nach GitHub pushen.
+
+## Audio quality and seek stall report
+
+- [ ] Reproduce the low-quality audio and playback stall after seeking.
+- [ ] Replace the low-quality source or provide a higher-quality encoded audio asset.
+- [ ] Fix seek handling so playback continues and progress advances after a jump.
+- [ ] Re-test online/offline playback, exact position resume, and core library features.
+- [ ] Save a new verified checkpoint and push the repaired state to GitHub.
+
+
+## Final audio regression closeout
+
+- [x] Reproduce the low-quality audio and playback stall after seeking.
+- [x] Replace the low-quality source or provide a higher-quality encoded audio asset.
+- [x] Fix seek handling so playback continues and progress advances after a jump.
+- [x] Re-test online/offline playback, exact position resume, and core library features.
+- [ ] Save a new verified checkpoint and push the repaired state to GitHub.

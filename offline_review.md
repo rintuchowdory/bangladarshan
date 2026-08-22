@@ -61,3 +61,7 @@ Die kurze Wikimedia-Sprachquelle wurde erfolgreich gespeichert: Cache-Eintrag vo
 Der gespeicherte Wikimedia-Sprachstream wurde direkt aus dem Cache als Blob-URL geladen und abgespielt: `sourceIsLocalBlob: true`, `readyState: 4`, `paused: false`, `duration: 115`. Damit ist die Offline-Wiedergabe unabhängig von einem erneuten Netzwerkabruf nachgewiesen.
 
 Der echte OAuth-Sync-Flow konnte in dieser Browserprüfung nicht ausgeführt werden, weil die Session abgemeldet war; die Login-Schaltfläche und die geschützten Endpunkte sind vorhanden, aber ein Benutzerlogin wäre für eine vollständige End-to-End-Validierung erforderlich.
+
+## Audio quality and seek fix validation
+
+All catalog books now use locally served generated WAV speech assets instead of low-bitrate or unstable external streams. In the browser, Philosophy 101 loaded from a same-origin `/manus-storage/...wav` URL with `readyState: 4` and a 36.92-second duration. After seeking backward, playback remained active and advanced from 32.249609 to 34.749754 seconds over 2.5 seconds (`delta: 2.500145`), confirming the seek-stall fix.
