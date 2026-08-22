@@ -109,5 +109,5 @@
 
 ## Post-fix browser verification
 
-- [ ] Re-run offline cached playback, exact position resume after reload, and core library flows after the final seek-slider fix.
-- [ ] Validate authenticated favorites, history, and bookmark synchronization, or document that it remains unverified without a logged-in session.
+- [x] Re-run offline cached playback, exact position resume after reload, and core library flows after the final seek-slider fix.
+- [x] Validate authenticated favorites, history, and bookmark synchronization, or document that it remains unverified without a logged-in session.

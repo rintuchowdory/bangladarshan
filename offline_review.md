@@ -65,3 +65,13 @@ Der echte OAuth-Sync-Flow konnte in dieser Browserprüfung nicht ausgeführt wer
 ## Audio quality and seek fix validation
 
 All catalog books now use locally served generated WAV speech assets instead of low-bitrate or unstable external streams. In the browser, Philosophy 101 loaded from a same-origin `/manus-storage/...wav` URL with `readyState: 4` and a 36.92-second duration. After seeking backward, playback remained active and advanced from 32.249609 to 34.749754 seconds over 2.5 seconds (`delta: 2.500145`), confirming the seek-stall fix.
+
+## Final post-fix browser pass
+
+The visible Save offline action reported “Audio saved for offline”. The service-worker cache `bangladarshan-v1` contained the local Philosophy 101 WAV, and a cache response produced a non-empty audio blob. After using the supported back-15-seconds control from 22 seconds, the UI showed 00:07 / 00:36; a full reload restored 00:07 / 00:36, confirming exact local position persistence after the final slider/seek change. The reloaded player source was a cache-backed blob URL.
+
+The browser showed the core library UI with the search control, All books/Favorites and language filters, a persisted favorite count, recently played history, and chapter controls. The preview was unauthenticated (“Sign in to sync”), so server-side favorites/history/bookmark synchronization was not independently verified in this pass; the protected tRPC procedures and earlier tests remain in place.
+
+## Final interaction regression after seek-slider fix
+
+After the final seek-slider change, the browser search was opened and `River` entered; the library reduced to the single Letters from a River result. Its favorite control was toggled off and back on, with visible toast messages and the counter changing Favorites 0 → Favorites 1. The recently played Philosophy 101 history card and resume control remained present, and the chapter/filter controls remained rendered. A cache-backed blob response for the active WAV was confirmed in the same pass, providing the offline-mode playback path without a network fetch. Bookmark/server-sync calls remain covered by the existing fullstack procedures and tests; the preview session displayed “Sign in to sync”, so authenticated server synchronization could not be executed without user login.
