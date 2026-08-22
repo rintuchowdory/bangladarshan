@@ -1,0 +1,10 @@
+{
+  "name": "BanglaDarshan",
+  "short_name": "BanglaDarshan",
+  "description": "A quiet place for big ideas.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#f7f5ef",
+  "theme_color": "#1b2140",
+  "icons": [{ "src": "/manus-storage/bangladarshan-logo_d145d3b4.png", "sizes": "192x192", "type": "image/png" }]
+}

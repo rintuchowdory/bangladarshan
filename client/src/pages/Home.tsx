@@ -12,6 +12,9 @@ import {
   Clock3,
   Headphones,
   Library,
+  Download,
+  Wifi,
+  WifiOff,
   Menu,
   Moon,
   Pause,
@@ -34,8 +37,6 @@ const artwork = {
   hero: "/manus-storage/bangladarshan-hero_7eb066d8.png",
   library: "/manus-storage/bangladarshan-library_6ddc247e.png",
 };
-
-const audioSource = "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3";
 
 type Language = "bn" | "en" | "de";
 
@@ -109,9 +110,9 @@ const chapters = [
 ];
 
 const books = [
-  { title: "Philosophy 101", subtitle: "A gentle beginning", author: "The listening edition", tag: "Featured", image: artwork.hero, progress: 0.18, topic: "philosophy", durationMinutes: 81, language: "bn" },
-  { title: "Letters from a River", subtitle: "On memory & place", author: "Selected essays", tag: "New", image: artwork.library, progress: 0, topic: "memoir", durationMinutes: 42, language: "en" },
-  { title: "The Art of Attention", subtitle: "Practices for presence", author: "Short reflections", tag: "12 min", image: artwork.hero, progress: 0, topic: "practice", durationMinutes: 12, language: "de" },
+  { title: "Philosophy 101", subtitle: "A gentle beginning", author: "The listening edition", tag: "Featured", image: artwork.hero, progress: 0.18, topic: "philosophy", durationMinutes: 81, language: "bn", audioSource: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3" },
+  { title: "Letters from a River", subtitle: "On memory & place", author: "Selected essays", tag: "New", image: artwork.library, progress: 0, topic: "memoir", durationMinutes: 42, language: "en", audioSource: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-2.mp3" },
+  { title: "The Art of Attention", subtitle: "Practices for presence", author: "Short reflections", tag: "12 min", image: artwork.hero, progress: 0, topic: "practice", durationMinutes: 12, language: "de", audioSource: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-3.mp3" },
 ];
 
 function formatTime(seconds: number) {
@@ -121,6 +122,10 @@ function formatTime(seconds: number) {
 
 export default function Home() {
   const [language, setLanguage] = useState<Language>(() => (localStorage.getItem("bd-language") as Language) || "en");
+  const [isOnline, setIsOnline] = useState(() => navigator.onLine);
+  const [offlineReady, setOfflineReady] = useState(() => localStorage.getItem("bd-audio-cached:Philosophy 101") === "true");
+  const [isCaching, setIsCaching] = useState(false);
+  const [playbackUrl, setPlaybackUrl] = useState(books[0].audioSource);
   const [dark, setDark] = useState(() => localStorage.getItem("bd-theme") === "dark");
   const [playing, setPlaying] = useState(false);
   const [progress, setProgress] = useState(() => Number(localStorage.getItem("bd-progress")) || 0.18);
@@ -161,6 +166,23 @@ export default function Home() {
   }), [durationFilter, favorites, languageFilter, query, showFavorites, topicFilter]);
 
   useEffect(() => {
+    let objectUrl: string | undefined;
+    setPlaybackUrl(activeBook.audioSource);
+    caches.open("bangladarshan-v1").then((cache) => cache.match(activeBook.audioSource)).then((response) => response?.blob()).then((blob) => {
+      if (blob) { objectUrl = URL.createObjectURL(blob); setPlaybackUrl(objectUrl); }
+    }).catch(() => undefined);
+    return () => { if (objectUrl) URL.revokeObjectURL(objectUrl); };
+  }, [activeBook.audioSource]);
+
+  useEffect(() => {
+    const onOnline = () => setIsOnline(true);
+    const onOffline = () => setIsOnline(false);
+    window.addEventListener("online", onOnline);
+    window.addEventListener("offline", onOffline);
+    return () => { window.removeEventListener("online", onOnline); window.removeEventListener("offline", onOffline); };
+  }, []);
+
+  useEffect(() => {
     document.documentElement.classList.toggle("dark", dark);
     localStorage.setItem("bd-theme", dark ? "dark" : "light");
   }, [dark]);
@@ -169,6 +191,10 @@ export default function Home() {
     localStorage.setItem("bd-language", language);
     document.documentElement.lang = language;
   }, [language]);
+
+  useEffect(() => {
+    setOfflineReady(localStorage.getItem(`bd-audio-cached:${activeBookId}`) === "true");
+  }, [activeBookId]);
 
   useEffect(() => {
     localStorage.setItem("bd-progress", String(progress));
@@ -209,15 +235,46 @@ export default function Home() {
   useEffect(() => {
     const audio = audioRef.current;
     if (!audio) return;
+    audio.load();
+  }, [playbackUrl]);
+
+  useEffect(() => {
+    const audio = audioRef.current;
+    if (!audio) return;
     audio.playbackRate = speed;
     if (playing) {
-      audio.play().catch(() => setPlaying(false));
+      if (audio.readyState < 2) {
+        audio.load();
+        audio.addEventListener("canplay", () => audio.play().catch(() => setPlaying(false)), { once: true });
+      } else {
+        audio.play().catch(() => setPlaying(false));
+      }
     } else {
       audio.pause();
     }
   }, [playing, speed]);
 
   const remaining = useMemo(() => Math.max(1, Math.round((duration * (1 - progress)) / 60)), [duration, progress]);
+  const cacheAudioForOffline = async () => {
+    if (offlineReady) return toast.success("Audio is already available offline");
+    setIsCaching(true);
+    try {
+      const controller = new AbortController();
+      const timeout = window.setTimeout(() => controller.abort(), 15000);
+      const response = await fetch(activeBook.audioSource, { mode: "cors", signal: controller.signal });
+      window.clearTimeout(timeout);
+      if (!response.ok) throw new Error("Audio request failed");
+      const cache = await caches.open("bangladarshan-v1");
+      await cache.put(activeBook.audioSource, response.clone());
+      setOfflineReady(true);
+      localStorage.setItem(`bd-audio-cached:${activeBook.title}`, "true");
+      toast.success("Audio saved for offline listening");
+    } catch {
+      toast.error("Could not save audio. Try again while online.");
+    } finally {
+      setIsCaching(false);
+    }
+  };
 
   const formatRelative = (timestamp: number) => {
     const minutes = Math.max(0, Math.floor((Date.now() - timestamp) / 60000));
@@ -252,6 +309,7 @@ export default function Home() {
   };
   const selectBook = (title: string) => {
     setActiveBookId(title);
+    setOfflineReady(localStorage.getItem(`bd-audio-cached:${title}`) === "true");
     setActiveChapter(1);
     setPlaying(true);
     setProgress(0);
@@ -274,7 +332,7 @@ export default function Home() {
 
   return (
     <div className="app-shell">
-      <audio ref={audioRef} src={audioSource} onLoadedMetadata={(event) => setDuration(event.currentTarget.duration)} onTimeUpdate={(event) => { setCurrentTime(event.currentTarget.currentTime); setProgress(event.currentTarget.currentTime / (event.currentTarget.duration || duration)); }} onEnded={() => setPlaying(false)} />
+      <audio ref={audioRef} src={playbackUrl} onLoadedMetadata={(event) => setDuration(event.currentTarget.duration)} onTimeUpdate={(event) => { setCurrentTime(event.currentTarget.currentTime); setProgress(event.currentTarget.currentTime / (event.currentTarget.duration || duration)); }} onEnded={() => setPlaying(false)} />
       <aside className={`side-rail ${showMenu ? "side-rail-open" : ""}`}>
         <div className="brand-lockup">
           <div className="brand-mark"><img src="/manus-storage/bangladarshan-logo_d145d3b4.png" alt="" /></div>
@@ -296,7 +354,7 @@ export default function Home() {
         <header className="topbar">
           <button className="mobile-menu" onClick={() => setShowMenu((value) => !value)} aria-label="Open menu">{showMenu ? <X size={20} /> : <Menu size={20} />}</button>
           <div className="breadcrumb"><span>BanglaDarshan</span><span className="breadcrumb-slash">/</span><strong>{t.navHome}</strong></div>
-          <div className="top-actions">
+          <div className="top-actions"><span className={`connectivity-status ${isOnline ? "online" : "offline"}`} title={isOnline ? "Online" : "Offline"}>{isOnline ? <Wifi size={14} /> : <WifiOff size={14} />}<span>{isOnline ? "Online" : "Offline"}</span></span>
             <button className={`icon-button ${showSearch ? "icon-button-active" : ""}`} aria-label="Search" onClick={() => setShowSearch((value) => !value)}><Search size={18} /></button>
             <div className="language-menu">
               <button className="language-button" onClick={() => setShowLanguages((value) => !value)} aria-expanded={showLanguages}>{language === "bn" ? "বাংলা" : language === "de" ? "Deutsch" : "English"}<ChevronDown size={15} /></button>
@@ -312,7 +370,7 @@ export default function Home() {
 
           <section className="feature-layout">
             <div className="feature-art"><img src={artwork.hero} alt="Abstract indigo river-map artwork" /><span className="river-line river-line-art" aria-hidden="true"><i /></span><div className="art-caption"><span>01</span><span>THE LISTENING EDITION</span></div></div>
-            <div className="feature-copy"><div className="tag-row"><span className="pill accent-pill">{t.inProgress}</span><span className="muted-label">{t.bengali} · 4 {t.chapters}</span></div><h2>{activeBook.title}</h2><p className="feature-subtitle">{language === "bn" ? "একটি কোমল শুরু" : language === "de" ? "Ein sanfter Anfang" : "A gentle beginning"}</p><p className="feature-description">A slow walk through the ideas that shape a life: wonder, attention, and the courage to ask a better question.</p><div className="feature-meta"><span><Clock3 size={15} /> 1h 21m</span><span><Headphones size={15} /> 4.8k listeners</span></div><div className="feature-cta"><button className="primary-button" onClick={togglePlaying}>{playing ? <Pause size={17} fill="currentColor" /> : <Play size={17} fill="currentColor" />}{playing ? "Pause" : t.continueListening}<span className="button-arrow"><ArrowRight size={16} /></span></button><button className="text-button" onClick={() => toast.success(t.save)}><Plus size={17} /> {t.save}</button></div></div>
+            <div className="feature-copy"><div className="tag-row"><span className="pill accent-pill">{t.inProgress}</span><span className="muted-label">{t.bengali} · 4 {t.chapters}</span></div><h2>{activeBook.title}</h2><p className="feature-subtitle">{language === "bn" ? "একটি কোমল শুরু" : language === "de" ? "Ein sanfter Anfang" : "A gentle beginning"}</p><p className="feature-description">A slow walk through the ideas that shape a life: wonder, attention, and the courage to ask a better question.</p><div className="feature-meta"><span><Clock3 size={15} /> 1h 21m</span><span><Headphones size={15} /> 4.8k listeners</span></div><div className="feature-cta"><button className="primary-button" onClick={togglePlaying}>{playing ? <Pause size={17} fill="currentColor" /> : <Play size={17} fill="currentColor" />}{playing ? "Pause" : t.continueListening}<span className="button-arrow"><ArrowRight size={16} /></span></button><button className="text-button" onClick={cacheAudioForOffline} disabled={isCaching}><Download size={16} /> {isCaching ? "Saving…" : offlineReady ? "Saved offline" : "Save offline"}</button></div></div>
           </section>
 
           <section className="continue-section"><div className="section-heading"><div><p className="eyebrow">{t.inProgress} <span className="bengali-seal">শোনা · ০১</span></p><h2>{t.continueListening}</h2></div><button className="link-button" onClick={showComingSoon}>{t.browse} <ArrowRight size={15} /></button></div><div className="continue-card"><img src={activeBook.image} alt={`${activeBook.title} cover`} /><div className="continue-info"><div className="continue-info-top"><div><strong>{activeBook.title}</strong><span>{t.chapter} 01 · {language === "bn" ? "বিস্ময়ের শুরু" : "The beginning of wonder"}</span></div><span className="time-left">{remaining} {t.minutesLeft}</span></div><div className="progress-track"><span style={{ width: `${Math.max(3, progress * 100)}%` }} /><i className="river-line-dot" /></div><div className="continue-bottom"><span>{formatTime(currentTime)} / {formatTime(duration)}</span><button onClick={togglePlaying}>{playing ? <Pause size={15} fill="currentColor" /> : <Play size={15} fill="currentColor" />} {playing ? "Pause" : t.listen}</button></div></div><div className="continue-play"><button onClick={togglePlaying} aria-label={playing ? "Pause playback" : "Play playback"}>{playing ? <Pause size={20} fill="currentColor" /> : <Play size={20} fill="currentColor" />}</button></div></div></section>

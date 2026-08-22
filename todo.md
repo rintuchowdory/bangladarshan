@@ -37,3 +37,22 @@
 - [x] Progress beim Wechsel zu einem neuen Buch zurücksetzen und anschließend den neuen Titel synchronisieren.
 - [x] Filter-, CTA- und Bookmark-Flows mit verfügbaren Vorschauprüfungen validieren.
 - [x] Finalen Checkpoint speichern und den GitHub-Sync nach den Review-Fixes bestätigen.
+
+## Online und offline hören
+
+- [x] Installierbare PWA-Metadaten und Service Worker ergänzen.
+- [x] Audio-Caching für den gewählten Hörbuch-Stream implementieren.
+- [x] Online-/Offline-Status und „Für offline speichern“-Aktion in die UI integrieren.
+- [x] Offline-Wiedergabe, responsive Darstellung, Checkpoint und GitHub-Sync prüfen.
+
+## Offline-Nachweis-Fixes
+
+- [x] Buchspezifische Audioquellen verdrahten und Offline-Speicherung an den aktiven Titel binden.
+- [x] Offline-Wiedergabe nach dem Caching im Browser verifizieren.
+- [x] Nach den Offline-/PWA-Fixes neuen Checkpoint speichern und GitHub-Sync bestätigen.
+
+## Letzte Offline-Validierung
+
+- [x] Offline-Modus inklusive Playback aus dem Cache simulieren und bestätigen.
+- [x] Erfolgsstatus der „Save offline“-Aktion sichtbar bestätigen.
+- [x] Danach neuen Checkpoint speichern und GitHub-Sync ausführen.
