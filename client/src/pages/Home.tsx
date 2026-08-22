@@ -110,9 +110,9 @@ const chapters = [
 ];
 
 const books = [
-  { title: "Philosophy 101", subtitle: "A gentle beginning", author: "The listening edition", tag: "Featured", image: artwork.hero, progress: 0.18, topic: "philosophy", durationMinutes: 81, language: "bn", audioSource: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3" },
-  { title: "Letters from a River", subtitle: "On memory & place", author: "Selected essays", tag: "New", image: artwork.library, progress: 0, topic: "memoir", durationMinutes: 42, language: "en", audioSource: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-2.mp3" },
-  { title: "The Art of Attention", subtitle: "Practices for presence", author: "Short reflections", tag: "12 min", image: artwork.hero, progress: 0, topic: "practice", durationMinutes: 12, language: "de", audioSource: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-3.mp3" },
+  { title: "Philosophy 101", subtitle: "A gentle beginning", author: "The listening edition", tag: "Featured", image: artwork.hero, progress: 0.18, topic: "philosophy", durationMinutes: 81, language: "bn", audioSource: "https://upload.wikimedia.org/wikipedia/commons/6/6b/Spoken_Wikipedia_-_M-105.ogg", },
+  { title: "Letters from a River", subtitle: "On memory & place", author: "Selected essays", tag: "New", image: artwork.library, progress: 0, topic: "memoir", durationMinutes: 42, language: "en", audioSource: "https://archive.org/download/philosophy_2501_librivox/philosophy_02_russell_64kb.mp3" },
+  { title: "The Art of Attention", subtitle: "Practices for presence", author: "Short reflections", tag: "12 min", image: artwork.hero, progress: 0, topic: "practice", durationMinutes: 12, language: "de", audioSource: "https://archive.org/download/philosophy_2501_librivox/philosophy_03_russell_64kb.mp3" },
 ];
 
 function formatTime(seconds: number) {
@@ -123,11 +123,12 @@ function formatTime(seconds: number) {
 export default function Home() {
   const [language, setLanguage] = useState<Language>(() => (localStorage.getItem("bd-language") as Language) || "en");
   const [isOnline, setIsOnline] = useState(() => navigator.onLine);
-  const [offlineReady, setOfflineReady] = useState(() => localStorage.getItem("bd-audio-cached:Philosophy 101") === "true");
+  const [offlineReady, setOfflineReady] = useState(false);
   const [isCaching, setIsCaching] = useState(false);
   const [playbackUrl, setPlaybackUrl] = useState(books[0].audioSource);
   const [dark, setDark] = useState(() => localStorage.getItem("bd-theme") === "dark");
   const [playing, setPlaying] = useState(false);
+  const [audioError, setAudioError] = useState(false);
   const [progress, setProgress] = useState(() => Number(localStorage.getItem("bd-progress")) || 0.18);
   const [duration, setDuration] = useState(3600);
   const [currentTime, setCurrentTime] = useState(648);
@@ -167,6 +168,7 @@ export default function Home() {
 
   useEffect(() => {
     let objectUrl: string | undefined;
+    setAudioError(false);
     setPlaybackUrl(activeBook.audioSource);
     caches.open("bangladarshan-v1").then((cache) => cache.match(activeBook.audioSource)).then((response) => response?.blob()).then((blob) => {
       if (blob) { objectUrl = URL.createObjectURL(blob); setPlaybackUrl(objectUrl); }
@@ -193,8 +195,15 @@ export default function Home() {
   }, [language]);
 
   useEffect(() => {
-    setOfflineReady(localStorage.getItem(`bd-audio-cached:${activeBookId}`) === "true");
-  }, [activeBookId]);
+    let cancelled = false;
+    setOfflineReady(false);
+    caches.open("bangladarshan-v1").then((cache) => cache.match(activeBook.audioSource)).then((response) => {
+      if (!cancelled) setOfflineReady(Boolean(response));
+    }).catch(() => {
+      if (!cancelled) setOfflineReady(false);
+    });
+    return () => { cancelled = true; };
+  }, [activeBook.audioSource]);
 
   useEffect(() => {
     localStorage.setItem("bd-progress", String(progress));
@@ -272,7 +281,7 @@ export default function Home() {
     setIsCaching(true);
     try {
       const controller = new AbortController();
-      const timeout = window.setTimeout(() => controller.abort(), 15000);
+      const timeout = window.setTimeout(() => controller.abort(), 120000);
       const response = await fetch(activeBook.audioSource, { mode: "cors", signal: controller.signal });
       window.clearTimeout(timeout);
       if (!response.ok) throw new Error("Audio request failed");
@@ -362,7 +371,8 @@ export default function Home() {
 
   return (
     <div className="app-shell">
-      <audio ref={audioRef} src={playbackUrl} onLoadedMetadata={(event) => setDuration(event.currentTarget.duration)} onTimeUpdate={(event) => { setCurrentTime(event.currentTarget.currentTime); setProgress(event.currentTarget.currentTime / (event.currentTarget.duration || duration)); }} onEnded={() => setPlaying(false)} />
+      <audio ref={audioRef} src={playbackUrl} preload="metadata" onLoadedMetadata={(event) => { setAudioError(false); setDuration(event.currentTarget.duration); }} onError={() => { setPlaying(false); setAudioError(true); toast.error("This audio could not be loaded. Please try again online."); }} onTimeUpdate={(event) => { setCurrentTime(event.currentTarget.currentTime); setProgress(event.currentTarget.currentTime / (event.currentTarget.duration || duration)); }} onEnded={() => setPlaying(false)} />
+      {audioError && <div className="audio-error" role="alert"><Volume2 size={15} /> Audio unavailable. Check your connection and try again.</div>}
       <aside className={`side-rail ${showMenu ? "side-rail-open" : ""}`}>
         <div className="brand-lockup">
           <div className="brand-mark"><img src="/manus-storage/bangladarshan-logo_d145d3b4.png" alt="" /></div>

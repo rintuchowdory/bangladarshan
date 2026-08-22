@@ -72,5 +72,19 @@
 
 ## Veröffentlichungsnachweis Exact Position
 
-- [ ] Neuen Checkpoint nach der Exact-Position-Änderung speichern.
-- [ ] Aktuellen Stand anschließend nach GitHub pushen und Remote-Status bestätigen.
+- [x] Neuen Checkpoint nach der Exact-Position-Änderung speichern.
+- [x] Aktuellen Stand anschließend nach GitHub pushen und Remote-Status bestätigen.
+
+## Gemeldeter Audiofehler
+
+- [x] Reale Audioquelle, MIME-Typ, CORS und Browser-Netzwerkfehler diagnostizieren.
+- [x] Wiedergabe für Hörbücher reparieren oder klare Fehleranzeige ergänzen.
+- [x] Online- und Offline-Wiedergabe mit hörbarem Stream end-to-end prüfen.
+- [x] Suche, Favoriten, Hörverlauf, exakte Position, Bookmarks und Auth-Flows erneut validieren.
+- [x] Nur nach erfolgreicher Prüfung neuen Checkpoint speichern und GitHub synchronisieren.
+
+## Nachweis nach Audiofix
+
+- [x] Neue Wikimedia-Sprachquelle offline speichern und als Cache-Quelle laden.
+- [x] Suche, Favoriten, Hörverlauf, exakte Position und Bookmarks nach dem Audiofix erneut im Browser prüfen; Auth/Sync bleibt ohne Anmeldung unbestätigt.
+- [ ] Nach bestandener Gesamtprüfung neuen Checkpoint speichern und den aktualisierten Stand nach GitHub pushen.
