@@ -61,6 +61,9 @@ type Copy = {
   browse: string;
   comingSoon: string;
   save: string;
+  favorites: string;
+  searchPlaceholder: string;
+  noResults: string;
 };
 
 const copy: Record<Language, Copy> = {
@@ -70,7 +73,7 @@ const copy: Record<Language, Copy> = {
     listen: "এখন শুনুন", details: "বইটি দেখুন", continueListening: "শোনা চালিয়ে যান", inProgress: "চলছে",
     minutesLeft: "মিনিট বাকি", libraryTitle: "আপনার লাইব্রেরি", allBooks: "সব বই", bengali: "বাংলা", english: "English", german: "Deutsch",
     chapters: "অধ্যায়", chapter: "অধ্যায়", nowPlaying: "এখন বাজছে", audioLanguage: "অডিও ভাষা", speed: "গতি", nextUp: "এরপর",
-    browse: "লাইব্রেরি দেখুন", comingSoon: "শীঘ্রই আসছে", save: "সংরক্ষণ করুন",
+    browse: "লাইব্রেরি দেখুন", comingSoon: "শীঘ্রই আসছে", save: "সংরক্ষণ করুন", favorites: "পছন্দের", searchPlaceholder: "খুঁজুন…", noResults: "কোনও বই পাওয়া যায়নি",
   },
   en: {
     navHome: "Home", navLibrary: "Library", navNotes: "Notes", greeting: "A little room to think",
@@ -78,7 +81,7 @@ const copy: Record<Language, Copy> = {
     listen: "Listen now", details: "View book", continueListening: "Continue listening", inProgress: "In progress",
     minutesLeft: "min left", libraryTitle: "Your library", allBooks: "All books", bengali: "বাংলা", english: "English", german: "Deutsch",
     chapters: "chapters", chapter: "Chapter", nowPlaying: "Now listening", audioLanguage: "Audio language", speed: "Speed", nextUp: "Up next",
-    browse: "Browse library", comingSoon: "Coming next", save: "Save for later",
+    browse: "Browse library", comingSoon: "Coming next", save: "Save for later", favorites: "Favorites", searchPlaceholder: "Search books…", noResults: "No books found",
   },
   de: {
     navHome: "Startseite", navLibrary: "Bibliothek", navNotes: "Notizen", greeting: "Ein wenig Raum zum Denken",
@@ -86,7 +89,7 @@ const copy: Record<Language, Copy> = {
     listen: "Jetzt anhören", details: "Buch ansehen", continueListening: "Weiterhören", inProgress: "In Arbeit",
     minutesLeft: "Min. übrig", libraryTitle: "Deine Bibliothek", allBooks: "Alle Bücher", bengali: "বাংলা", english: "English", german: "Deutsch",
     chapters: "Kapitel", chapter: "Kapitel", nowPlaying: "Jetzt hörst du", audioLanguage: "Audiosprache", speed: "Geschwindigkeit", nextUp: "Als Nächstes",
-    browse: "Bibliothek öffnen", comingSoon: "Demnächst", save: "Für später speichern",
+    browse: "Bibliothek öffnen", comingSoon: "Demnächst", save: "Für später speichern", favorites: "Favoriten", searchPlaceholder: "Bücher suchen…", noResults: "Keine Bücher gefunden",
   },
 };
 
@@ -118,9 +121,18 @@ export default function Home() {
   const [speed, setSpeed] = useState(1);
   const [activeChapter, setActiveChapter] = useState(1);
   const [showMenu, setShowMenu] = useState(false);
+  const [showSearch, setShowSearch] = useState(false);
+  const [query, setQuery] = useState("");
+  const [showFavorites, setShowFavorites] = useState(false);
+  const [favorites, setFavorites] = useState<string[]>(() => JSON.parse(localStorage.getItem("bd-favorites") || "[]"));
   const [showLanguages, setShowLanguages] = useState(false);
   const audioRef = useRef<HTMLAudioElement>(null);
   const t = copy[language];
+  const filteredBooks = useMemo(() => books.filter((book) => {
+    const matchesQuery = `${book.title} ${book.subtitle} ${book.author}`.toLowerCase().includes(query.toLowerCase());
+    const matchesFavorites = !showFavorites || favorites.includes(book.title);
+    return matchesQuery && matchesFavorites;
+  }), [favorites, query, showFavorites]);
 
   useEffect(() => {
     document.documentElement.classList.toggle("dark", dark);
@@ -135,6 +147,10 @@ export default function Home() {
   useEffect(() => {
     localStorage.setItem("bd-progress", String(progress));
   }, [progress]);
+
+  useEffect(() => {
+    localStorage.setItem("bd-favorites", JSON.stringify(favorites));
+  }, [favorites]);
 
   useEffect(() => {
     const audio = audioRef.current;
@@ -160,7 +176,11 @@ export default function Home() {
     setPlaying(true);
     toast.success(`${t.chapter} ${id} selected`);
   };
-  const showComingSoon = () => toast(t.comingSoon, { description: "Bookmarks, search, and listening history are part of the next release." });
+  const showComingSoon = () => toast(t.comingSoon, { description: "Bookmarks and listening history are part of the next release." });
+  const toggleFavorite = (title: string) => {
+    setFavorites((current) => current.includes(title) ? current.filter((item) => item !== title) : [...current, title]);
+    toast(favorites.includes(title) ? `${title} removed from ${t.favorites}` : `${title} saved to ${t.favorites}`);
+  };
 
   return (
     <div className="app-shell">
@@ -172,7 +192,7 @@ export default function Home() {
         </div>
         <nav className="primary-nav" aria-label="Primary navigation">
           <button className="nav-item active"><Library size={17} /> {t.navHome}</button>
-          <button className="nav-item" onClick={showComingSoon}><BookOpen size={17} /> {t.navLibrary}</button>
+          <button className="nav-item" onClick={() => { setShowFavorites(false); document.getElementById("library")?.scrollIntoView({ behavior: "smooth" }); }}><BookOpen size={17} /> {t.navLibrary}</button>
           <button className="nav-item" onClick={showComingSoon}><Sparkles size={17} /> {t.navNotes}<span className="nav-soon">0.2</span></button>
         </nav>
         <div className="rail-note"><span className="rail-note-line" /><p>“The unexamined life is not worth living.”</p><small>— Socrates</small></div>
@@ -187,7 +207,7 @@ export default function Home() {
           <button className="mobile-menu" onClick={() => setShowMenu((value) => !value)} aria-label="Open menu">{showMenu ? <X size={20} /> : <Menu size={20} />}</button>
           <div className="breadcrumb"><span>BanglaDarshan</span><span className="breadcrumb-slash">/</span><strong>{t.navHome}</strong></div>
           <div className="top-actions">
-            <button className="icon-button" aria-label="Search" onClick={showComingSoon}><Search size={18} /></button>
+            <button className={`icon-button ${showSearch ? "icon-button-active" : ""}`} aria-label="Search" onClick={() => setShowSearch((value) => !value)}><Search size={18} /></button>
             <div className="language-menu">
               <button className="language-button" onClick={() => setShowLanguages((value) => !value)} aria-expanded={showLanguages}>{language === "bn" ? "বাংলা" : language === "de" ? "Deutsch" : "English"}<ChevronDown size={15} /></button>
               {showLanguages && <div className="language-popover">{(["en", "bn", "de"] as Language[]).map((item) => <button key={item} onClick={() => { setLanguage(item); setShowLanguages(false); }} className={item === language ? "selected" : ""}>{item === "bn" ? "বাংলা" : item === "de" ? "Deutsch" : "English"}{item === language && <Check size={14} />}</button>)}</div>}
@@ -197,6 +217,7 @@ export default function Home() {
         </header>
 
         <div className="content-wrap">
+          {showSearch && <div className="search-panel"><Search size={17} /><input autoFocus value={query} onChange={(event) => setQuery(event.target.value)} placeholder={t.searchPlaceholder} aria-label={t.searchPlaceholder} /><button onClick={() => { setQuery(""); setShowSearch(false); }} aria-label="Close search"><X size={16} /></button></div>}
           <section className="welcome-row"><div><p className="eyebrow">{t.greeting} <span className="eyebrow-dot" /></p><h1>{t.heroTitle}</h1><p className="lede">{t.heroBody}</p></div><button className="round-action" onClick={showComingSoon} aria-label="Adjust preferences"><SlidersHorizontal size={19} /></button></section>
 
           <section className="feature-layout">
@@ -206,7 +227,7 @@ export default function Home() {
 
           <section className="continue-section"><div className="section-heading"><div><p className="eyebrow">{t.inProgress} <span className="bengali-seal">শোনা · ০১</span></p><h2>{t.continueListening}</h2></div><button className="link-button" onClick={showComingSoon}>{t.browse} <ArrowRight size={15} /></button></div><div className="continue-card"><img src={artwork.hero} alt="Philosophy 101 cover" /><div className="continue-info"><div className="continue-info-top"><div><strong>Philosophy 101</strong><span>{t.chapter} 01 · {language === "bn" ? "বিস্ময়ের শুরু" : "The beginning of wonder"}</span></div><span className="time-left">{remaining} {t.minutesLeft}</span></div><div className="progress-track"><span style={{ width: `${Math.max(3, progress * 100)}%` }} /><i className="river-line-dot" /></div><div className="continue-bottom"><span>{formatTime(currentTime)} / {formatTime(duration)}</span><button onClick={togglePlaying}>{playing ? <Pause size={15} fill="currentColor" /> : <Play size={15} fill="currentColor" />} {playing ? "Pause" : t.listen}</button></div></div><div className="continue-play"><button onClick={togglePlaying} aria-label={playing ? "Pause playback" : "Play playback"}>{playing ? <Pause size={20} fill="currentColor" /> : <Play size={20} fill="currentColor" />}</button></div></div></section>
 
-          <section className="library-section"><div className="section-heading library-heading"><div><p className="eyebrow">{t.libraryTitle}</p><h2>{t.libraryTitle}</h2></div><div className="filter-tabs"><button className="active">{t.allBooks}</button><button>{t.bengali}</button><button>{t.english}</button><button>{t.german}</button></div></div><div className="book-grid">{books.map((book, index) => <article className={`book-card ${index === 1 ? "book-card-offset" : ""}`} key={book.title}><div className="book-image"><img src={book.image} alt="" /><span className="book-tag">{book.tag}</span><button className="book-play" onClick={() => selectChapter(1)} aria-label={`${t.listen} ${book.title}`}><Play size={15} fill="currentColor" /></button></div><div className="book-details"><span className="book-kicker">{index === 0 ? "PHILOSOPHY" : index === 1 ? "MEMOIR" : "PRACTICE"}</span><h3>{book.title}</h3><p>{book.subtitle}</p><small>{book.author}</small></div></article>)}</div></section>
+          <section className="library-section" id="library"><div className="section-heading library-heading"><div><p className="eyebrow">{t.libraryTitle}</p><h2>{t.libraryTitle}</h2></div><div className="filter-tabs"><button className={!showFavorites ? "active" : ""} onClick={() => setShowFavorites(false)}>{t.allBooks}</button><button className={showFavorites ? "active" : ""} onClick={() => setShowFavorites(true)}>{t.favorites} <span className="favorites-count">{favorites.length}</span></button><button>{t.bengali}</button><button>{t.english}</button><button>{t.german}</button></div></div><div className="book-grid">{filteredBooks.length ? filteredBooks.map((book, index) => <article className={`book-card ${index === 1 ? "book-card-offset" : ""}`} key={book.title}><div className="book-image"><img src={book.image} alt="" /><span className="book-tag">{book.tag}</span><button className={`favorite-toggle ${favorites.includes(book.title) ? "is-favorite" : ""}`} onClick={() => toggleFavorite(book.title)} aria-label={`${favorites.includes(book.title) ? "Remove" : "Save"} ${book.title} ${t.favorites}`}>{favorites.includes(book.title) ? "♥" : "♡"}</button><button className="book-play" onClick={() => selectChapter(1)} aria-label={`${t.listen} ${book.title}`}><Play size={15} fill="currentColor" /></button></div><div className="book-details"><span className="book-kicker">{index === 0 ? "PHILOSOPHY" : index === 1 ? "MEMOIR" : "PRACTICE"}</span><h3>{book.title}</h3><p>{book.subtitle}</p><small>{book.author}</small></div></article>) : <div className="empty-library"><Search size={20} /><strong>{t.noResults}</strong><span>{query || showFavorites ? "Try another title or browse all books." : "Save a book to see it here."}</span></div>}</div></section>
 
           <section className="chapters-section"><div className="section-heading"><div><p className="eyebrow">{t.nowPlaying} <span className="bengali-seal">ভাবনার পথ</span></p><h2>{t.chapters}</h2></div><div className="player-language"><span>{t.audioLanguage}</span><button onClick={() => { const next = language === "bn" ? "en" : language === "en" ? "de" : "bn"; setLanguage(next); }}>{language === "bn" ? "বাংলা" : language === "de" ? "Deutsch" : "English"}<ChevronDown size={14} /></button></div></div><div className="chapter-list"><span className="chapter-rail" aria-hidden="true" />{chapters.map((item) => <button key={item.id} className={`chapter-row ${activeChapter === item.id ? "current" : ""}`} onClick={() => selectChapter(item.id)}><span className="chapter-number">{String(item.id).padStart(2, "0")}</span><span className="chapter-title"><strong>{language === "bn" ? item.bn : item.title}</strong><small>{t.chapter} {String(item.id).padStart(2, "0")}</small></span><span className="chapter-progress">{item.progress > 0 && <i style={{ width: `${item.progress * 100}%` }} />}</span><span className="chapter-duration">{item.duration}</span><span className="chapter-state">{activeChapter === item.id ? <Pause size={16} fill="currentColor" /> : <Play size={16} />}</span></button>)}</div></section>
         </div>
