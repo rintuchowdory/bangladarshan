@@ -16,7 +16,9 @@ export function useAuth(options?: UseAuthOptions) {
   const { redirectOnUnauthenticated = false, redirectPath } = options ?? {};
   const utils = trpc.useUtils();
 
+  const hasBackend = Boolean(import.meta.env.VITE_API_BASE_URL);
   const meQuery = trpc.auth.me.useQuery(undefined, {
+    enabled: hasBackend,
     retry: false,
     refetchOnWindowFocus: false,
   });

@@ -7,8 +7,8 @@ import { startLogin } from "@/const";
 import { trpc } from "@/lib/trpc";
 
 const artwork = {
-  hero: "/manus-storage/bangladarshan-hero_7eb066d8.png",
-  library: "/manus-storage/bangladarshan-library_6ddc247e.png",
+  hero: `${import.meta.env.BASE_URL}bangladarshan-hero.svg`,
+  library: `${import.meta.env.BASE_URL}bangladarshan-library.svg`,
 };
 
 const catalog = {

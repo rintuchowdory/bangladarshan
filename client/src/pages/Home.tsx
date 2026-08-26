@@ -34,8 +34,8 @@ import { toast } from "sonner";
 import { useLocation } from "wouter";
 
 const artwork = {
-  hero: "/manus-storage/bangladarshan-hero_7eb066d8.png",
-  library: "/manus-storage/bangladarshan-library_6ddc247e.png",
+  hero: `${import.meta.env.BASE_URL}bangladarshan-hero.svg`,
+  library: `${import.meta.env.BASE_URL}bangladarshan-library.svg`,
 };
 
 type Language = "bn" | "en" | "de";
@@ -117,8 +117,8 @@ const books = [
 
 const languageAudioSources: Record<Language, string> = {
   en: "https://archive.org/download/philosophy_2501_librivox/philosophy_01_russell_128kb.mp3",
-  bn: "/manus-storage/bangladarshan-philosophy-bengali-audiobook_201da9e3.wav",
-  de: "/manus-storage/bangladarshan-philosophy-german-audiobook_07db5bad.wav",
+  bn: "https://archive.org/download/philosophy_2501_librivox/philosophy_01_russell_128kb.mp3",
+  de: "https://archive.org/download/philosophy_2501_librivox/philosophy_01_russell_128kb.mp3",
 };
 
 function formatTime(seconds: number) {
@@ -403,7 +403,7 @@ export default function Home() {
       {audioError && <div className="audio-error" role="alert"><Volume2 size={15} /> Audio unavailable. Check your connection and try again.</div>}
       <aside className={`side-rail ${showMenu ? "side-rail-open" : ""}`}>
         <div className="brand-lockup">
-          <div className="brand-mark"><img src="/manus-storage/bangladarshan-logo_d145d3b4.png" alt="" /></div>
+          <div className="brand-mark"><img src={`${import.meta.env.BASE_URL}bangladarshan-logo.svg`} alt="" /></div>
           <span>Bangla<span>Darshan</span></span><i className="brand-seal">শ্রবণ</i>
         </div>
         <nav className="primary-nav" aria-label="Primary navigation">
