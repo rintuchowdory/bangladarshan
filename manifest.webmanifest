@@ -6,5 +6,5 @@
   "display": "standalone",
   "background_color": "#f7f5ef",
   "theme_color": "#1b2140",
-  "icons": [{ "src": "/manus-storage/bangladarshan-logo_d145d3b4.png", "sizes": "192x192", "type": "image/png" }]
+  "icons": [{ "src": "./bangladarshan-logo.svg", "sizes": "192x192", "type": "image/png" }]
 }
